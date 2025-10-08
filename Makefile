@@ -30,7 +30,7 @@ run: ## Run main directly
 # Clean build artifacts
 clean: ## Remove build artifacts
 	rm -f autowsl autowsl.exe
-	rm -rf .autowsl_tmp/ dist/ coverage.* coverage.txt coverage.out coverage.html
+	rm -rf .autowsl_tmp/ dist/ coverage.* coverage.out coverage.out coverage.html
 	rm -f *.appx *.appxbundle *.tar *.tar.gz
 
 dist-clean: ## Clean only dist directory
@@ -54,7 +54,7 @@ test-unit: ## Fast unit tests (short)
 	$(GO) test -short ./...
 
 test-ci: ## Mirrors CI test command (race + coverage on tests folder)
-	$(GO) test -v $(RACE) -coverprofile=coverage.txt -covermode=atomic ./tests/...
+	$(GO) test -v $(RACE) -coverprofile=coverage.out -covermode=atomic ./tests/...
 
 # Run tests with coverage
 test-coverage: ## Full project coverage (includes all pkgs)
@@ -64,9 +64,9 @@ test-coverage: ## Full project coverage (includes all pkgs)
 	$(GO) tool cover -html=coverage.out -o coverage.html
 	@echo "HTML coverage: coverage.html"
 
-coverage-html: ## Open (generate) HTML from existing coverage.txt
-	@[ -f coverage.txt ] || { echo "coverage.txt missing - run test-ci first"; exit 1; }
-	$(GO) tool cover -html=coverage.txt -o coverage.html
+coverage-html: ## Open (generate) HTML from existing coverage.out
+	@[ -f coverage.out ] || { echo "coverage.out missing - run test-ci first"; exit 1; }
+	$(GO) tool cover -html=coverage.out -o coverage.html
 	@echo "HTML coverage: coverage.html"
 
 # Run integration tests (requires WSL)
@@ -133,7 +133,7 @@ pre-commit: fmt vet lint test-unit ## Quick pre-push hygiene
 
 # CI/CD simulation
 ci: install lint test-ci build-release ## Simulate CI pipeline locally
-	@echo "✓ CI checks complete (coverage in coverage.txt)"
+	@echo "✓ CI checks complete (coverage in coverage.out)"
 
 # Release helpers -----------------------------------------------------------
 release-build: ## Build Windows binaries for release (amd64 + arm64) with VERSION

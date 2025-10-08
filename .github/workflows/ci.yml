@@ -34,12 +34,12 @@ jobs:
         run: go mod download
       
       - name: Run tests
-        run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+        run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./tests/...
       
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
-          file: ./coverage.txt
+          files: ./coverage.txt
           flags: unittests
           fail_ci_if_error: false
   
@@ -71,6 +71,7 @@ jobs:
       
       - name: Verify binary
         run: .\autowsl.exe --version
+        shell: pwsh
       
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4

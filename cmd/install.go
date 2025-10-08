@@ -158,7 +158,7 @@ func runInstall(cmd *cobra.Command, args []string) error {
 
 	// Check if winget is available
 	if !mgr.IsWingetAvailable() {
-		extractor.CleanupTempDir(tempDir)
+		_ = extractor.CleanupTempDir(tempDir)
 		return fmt.Errorf("winget is not available. Please install 'App Installer' from Microsoft Store")
 	}
 
@@ -166,7 +166,7 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		PackageID: selectedDistro.PackageID,
 	})
 	if err != nil {
-		extractor.CleanupTempDir(tempDir)
+		_ = extractor.CleanupTempDir(tempDir)
 		return fmt.Errorf("failed to download '%s': %w", selectedDistro.Version, err)
 	}
 	fmt.Println("  ✓ Download completed")
@@ -174,7 +174,7 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	fmt.Println("\n→ Extracting package...")
 	tarFilePath, err := extractor.ExtractAppx(downloadedFile, tempDir)
 	if err != nil {
-		extractor.CleanupTempDir(tempDir)
+		_ = extractor.CleanupTempDir(tempDir)
 		return fmt.Errorf("failed to extract package '%s': %w", filepath.Base(downloadedFile), err)
 	}
 
@@ -190,7 +190,7 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	}
 
 	if err := wsl.Import(importOpts); err != nil {
-		extractor.CleanupTempDir(tempDir)
+		_ = extractor.CleanupTempDir(tempDir)
 		return fmt.Errorf("failed to import distribution '%s' to '%s': %w", distroName, distroPath, err)
 	}
 
@@ -246,7 +246,7 @@ func runInstall(cmd *cobra.Command, args []string) error {
 
 		if err != nil {
 			if !installKeepTar {
-				extractor.CleanupTempDir(tempDir)
+				_ = extractor.CleanupTempDir(tempDir)
 			}
 			return nil // runProvisioningPipeline already printed errors
 		}

@@ -143,25 +143,6 @@ func copyPlaybookToWSL(distroName, windowsPlaybookPath string) (string, error) {
 	return wslPlaybookPath, nil
 }
 
-// convertToWSLPath converts a Windows path to a WSL path using wslpath utility
-func convertToWSLPath(windowsPath string) (string, error) {
-	// Get absolute path
-	absPath, err := filepath.Abs(windowsPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to get absolute path for '%s': %w", windowsPath, err)
-	}
-
-	// Use WSL's official wslpath utility for reliable conversion
-	cmd := exec.Command("wsl.exe", "wslpath", "-u", absPath)
-	output, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("failed to convert Windows path '%s' to WSL path: %w", absPath, err)
-	}
-
-	wslPath := strings.TrimSpace(string(output))
-	return wslPath, nil
-}
-
 // buildAnsibleCommand builds the ansible-playbook command string
 func buildAnsibleCommand(playbookPath string, opts PlaybookOptions) string {
 	cmd := fmt.Sprintf("ansible-playbook %s", playbookPath)

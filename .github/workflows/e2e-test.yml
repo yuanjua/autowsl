@@ -48,17 +48,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
       
-      - name: Build autowsl
-        run: go build -o autowsl.exe .
+      - name: Install winget
+        uses: Cyberboss/install-winget@v1
       
       - name: Setup WSL
-        shell: pwsh
-        run: |
-          wsl --set-default-version 2
-          wsl --update || Write-Host "wsl --update failed (non-fatal)"
-          Start-Sleep -Seconds 5
-          wsl --status || Write-Host "status check failed (continuing)"
-          Get-Command winget -ErrorAction SilentlyContinue || (Write-Host "winget missing"; exit 1)
+        uses: Vampire/setup-wsl@v6
+      
+      - name: Build autowsl
+        run: go build -o autowsl.exe .
       
       - name: Verify WSL
         run: wsl --status

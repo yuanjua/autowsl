@@ -69,6 +69,11 @@ For scripting or power users, you can provide all the details as command-line fl
 - `--path`: The custom installation directory
 - `--playbooks`: A comma-separated list of built-in (aliases) or custom playbooks to run after installation
 
+```bash
+./autowsl.exe install --from welcome-to-docker.tar --name docker-welcome --path ./wsl-distros/docker-test
+```
+This command shows using `--from` to create distribution from local `.tar` file.
+
 **Provision existing distribution:**
 
 ```bash
@@ -98,7 +103,7 @@ For scripting or power users, you can provide all the details as command-line fl
 
 - `autowsl list`: See all your installed WSL distributions
 - `autowsl provision <name>`: Configure an existing distro with Ansible playbooks
-- `autowsl aliases`: List available built-in playbooks
+- `autowsl aliases`: List available built-in playbooks (PRs are welcome)
 - `autowsl -h`: For more details
 
 ## For Developers
@@ -111,16 +116,10 @@ Interested in improving autowsl? Here's how to get started.
 go build -o autowsl.exe .
 ```
 
-**Run all tests:**
+**Run pre-commit:**
 
 ```bash
-go test -v ./...
-```
-
-**Format your code:**
-
-```bash
-go fmt ./...
+make pre-commit
 ```
 
 ## Contributing

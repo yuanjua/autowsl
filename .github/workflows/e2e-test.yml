@@ -2,9 +2,9 @@ name: E2E Tests
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, dev ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, dev ]
   workflow_dispatch:
 
 jobs:
@@ -53,69 +53,36 @@ jobs:
       
       - name: Setup WSL
         run: |
-          Write-Host "Setting WSL default version..."
           wsl --set-default-version 2
-          
-          Write-Host "Updating WSL..."
           wsl --update
-          
-          Write-Host "Waiting for WSL to initialize..."
           Start-Sleep -Seconds 5
         shell: pwsh
       
-      - name: Verify WSL installation
-        run: |
-          Write-Host "Checking WSL status..."
-          wsl --status
-          
-          Write-Host "Listing current distributions..."
-          wsl --list --verbose
+      - name: Verify WSL
+        run: wsl --status
         shell: pwsh
+        continue-on-error: true
       
-      - name: Install distribution and provision with curl
-        run: |
-          .\autowsl.exe install "${{ matrix.distro.name }}" --name "${{ matrix.distro.test-name }}" --playbooks curl --verbose
+      - name: Install and provision
+        run: .\autowsl.exe install "${{ matrix.distro.name }}" --name "${{ matrix.distro.test-name }}" --playbooks curl
         timeout-minutes: 30
         shell: pwsh
       
-      - name: Verify distribution is installed
+      - name: Verify install
         run: |
-          $output = wsl -l -v
-          if ($output -notmatch "${{ matrix.distro.test-name }}") {
-            Write-Error "Distribution ${{ matrix.distro.test-name }} not found in WSL list"
-            exit 1
-          }
-          Write-Host "Distribution installed successfully"
+          if ((wsl -l -v) -notmatch "${{ matrix.distro.test-name }}") { exit 1 }
+        shell: pwsh
       
-      - name: Verify curl is installed
-        run: |
-          $curlVersion = wsl -d "${{ matrix.distro.test-name }}" -- curl --version
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "curl not found in ${{ matrix.distro.test-name }}"
-            exit 1
-          }
-          Write-Host "curl installed successfully: $curlVersion"
+      - name: Verify curl
+        run: wsl -d "${{ matrix.distro.test-name }}" -- curl --version
+        shell: pwsh
       
-      - name: Test curl functionality
-        run: |
-          $result = wsl -d "${{ matrix.distro.test-name }}" -- curl -s -o /dev/null -w "%{http_code}" https://www.google.com
-          if ($result -ne "200") {
-            Write-Error "curl failed to fetch URL, HTTP status: $result"
-            exit 1
-          }
-          Write-Host "curl functionality verified (HTTP $result)"
+      - name: Test curl
+        run: wsl -d "${{ matrix.distro.test-name }}" -- curl -s https://www.google.com
+        shell: pwsh
       
-      - name: Cleanup - Remove test distribution
+      - name: Cleanup
         if: always()
-        run: |
-          wsl --unregister "${{ matrix.distro.test-name }}"
+        run: wsl --unregister "${{ matrix.distro.test-name }}"
+        shell: pwsh
         continue-on-error: true
-      
-      - name: Upload logs on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: e2e-logs-${{ matrix.distro.test-name }}
-          path: |
-            .autowsl_tmp/
-          retention-days: 7

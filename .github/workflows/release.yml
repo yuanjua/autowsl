@@ -1,0 +1,55 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+      
+      - name: Get version
+        id: version
+        run: |
+          if ("${{ github.ref_name }}") {
+            echo "VERSION=${{ github.ref_name }}" >> $env:GITHUB_OUTPUT
+          }
+        shell: pwsh
+      
+      - name: Build
+        run: |
+          $VERSION = "${{ steps.version.outputs.VERSION }}"
+          go build -ldflags "-X github.com/yuanjua/autowsl/cmd.Version=$VERSION" -o autowsl-windows-amd64.exe .
+          $env:GOARCH = "arm64"
+          go build -ldflags "-X github.com/yuanjua/autowsl/cmd.Version=$VERSION" -o autowsl-windows-arm64.exe .
+        shell: pwsh
+      
+      - name: Checksums
+        run: |
+          Get-FileHash autowsl-windows-*.exe | ForEach-Object {
+            "$($_.Hash.ToLower())  $($_.Path | Split-Path -Leaf)"
+          } | Out-File checksums.txt
+        shell: pwsh
+      
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: ${{ contains(github.ref_name, '-') }}
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: |
+            autowsl-windows-amd64.exe
+            autowsl-windows-arm64.exe
+            checksums.txt
+

@@ -12,13 +12,13 @@ permissions:
 jobs:
   release:
     runs-on: windows-latest
-    
+    env:
+      GO_VERSION: '1.21'
     steps:
       - uses: actions/checkout@v4
-      
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: ${{ env.GO_VERSION }}
       
       - name: Get version
         id: version
@@ -29,12 +29,12 @@ jobs:
         shell: pwsh
       
       - name: Build
+        shell: pwsh
         run: |
           $VERSION = "${{ steps.version.outputs.VERSION }}"
           go build -ldflags "-X github.com/yuanjua/autowsl/cmd.Version=$VERSION" -o autowsl-windows-amd64.exe .
           $env:GOARCH = "arm64"
           go build -ldflags "-X github.com/yuanjua/autowsl/cmd.Version=$VERSION" -o autowsl-windows-arm64.exe .
-        shell: pwsh
       
       - name: Checksums
         run: |
@@ -43,6 +43,14 @@ jobs:
           } | Out-File checksums.txt
         shell: pwsh
       
+      - name: Upload build artifacts (debug)
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-build-${{ steps.version.outputs.VERSION }}
+          path: |
+            autowsl-windows-*.exe
+            checksums.txt
+          retention-days: 5
       - name: Release
         uses: softprops/action-gh-release@v1
         with:

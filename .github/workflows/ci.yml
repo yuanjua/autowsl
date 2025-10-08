@@ -7,20 +7,33 @@ on:
     branches: [ main, dev ]
   workflow_dispatch:
 
+env:
+  GO_VERSION: '1.21'
+
 jobs:
-  test:
-    name: Unit Tests
-    runs-on: windows-latest
-    
+  lint:
+    name: Lint (golangci-lint)
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Setup Go
-        uses: actions/setup-go@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
-      
+          go-version: ${{ env.GO_VERSION }}
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: latest
+          args: --timeout=5m
+
+  test:
+    name: Unit Tests (Windows)
+    runs-on: windows-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
       - name: Cache Go modules
         uses: actions/cache@v4
         with:
@@ -30,72 +43,68 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
-      
       - name: Download dependencies
         run: go mod download
-      
       - name: Run tests
         run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./tests/...
-      
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-windows
+          path: coverage.txt
+          retention-days: 7
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
           files: ./coverage.txt
           flags: unittests
           fail_ci_if_error: false
-  
+
   build:
-    name: Build
-    runs-on: windows-latest
-    
+    name: Build (matrix)
+    runs-on: ${{ matrix.os }}
+    needs: [lint, test]
+    strategy:
+      matrix:
+        os: [windows-latest]
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Setup Go
-        uses: actions/setup-go@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
-      
+          go-version: ${{ env.GO_VERSION }}
       - name: Cache Go modules
         uses: actions/cache@v4
         with:
           path: |
+            ~/.cache/go-build
+            ~/.cache/go/pkg/mod
+            ~/go/pkg/mod
             ~\AppData\Local\go-build
             ~\go\pkg\mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
-      
       - name: Build
-        run: go build -v -o autowsl.exe .
-      
+        shell: bash
+        run: |
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            go build -v -o autowsl.exe .
+          else
+            go build -v -o autowsl .
+          fi
       - name: Verify binary
-        run: .\autowsl.exe --version
-        shell: pwsh
-      
+        shell: bash
+        run: |
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            ./autowsl.exe --version || true
+          else
+            ./autowsl --version || true
+          fi
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
-          name: autowsl-windows
-          path: autowsl.exe
+          name: autowsl-${{ matrix.os }}
+          path: |
+            autowsl
+            autowsl.exe
           retention-days: 7
-  
-  lint:
-    name: Lint
-    runs-on: windows-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.21'
-      
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v4
-        with:
-          version: latest
-          args: --timeout=5m

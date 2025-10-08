@@ -23,6 +23,7 @@ var (
 	installTags       []string
 	installVerbose    bool
 	installWSLVersion int
+	installFromTar    string
 )
 
 var installCmd = &cobra.Command{
@@ -37,6 +38,9 @@ Examples:
 
 	# Direct installation
 	autowsl install "Ubuntu 22.04 LTS"
+
+	# Install from a tar file
+	autowsl install --from welcome-to-docker.tar --name docker-demo
 
 	# Specify WSL 1 instead of default WSL 2
 	autowsl install "Ubuntu 22.04 LTS" --version 1
@@ -62,12 +66,18 @@ func init() {
 	installCmd.Flags().StringSliceVar(&installTags, "tags", []string{}, "Ansible tags to run (comma-separated)")
 	installCmd.Flags().BoolVarP(&installVerbose, "verbose", "v", false, "Verbose Ansible output")
 	installCmd.Flags().IntVar(&installWSLVersion, "version", 2, "WSL version to use (1 or 2)")
+	installCmd.Flags().StringVar(&installFromTar, "from", "", "Install from an existing tar file instead of downloading")
 }
 
 func runInstall(cmd *cobra.Command, args []string) error {
 	// Check if WSL is installed
 	if err := wsl.CheckWSLInstalled(); err != nil {
 		return fmt.Errorf("WSL is not available: %w\nPlease install WSL first: https://docs.microsoft.com/en-us/windows/wsl/install", err)
+	}
+
+	// Check if installing from tar file
+	if installFromTar != "" {
+		return runInstallFromTar(args)
 	}
 
 	// Use shared helper for distro selection
@@ -277,4 +287,148 @@ func generateDistroName(d distro.Distro) string {
 	name = strings.ReplaceAll(name, ".", "")
 	name = strings.ToLower(name)
 	return name
+}
+
+// runInstallFromTar handles installation from an existing tar file
+func runInstallFromTar(args []string) error {
+	// Verify tar file exists
+	if _, err := os.Stat(installFromTar); os.IsNotExist(err) {
+		return fmt.Errorf("tar file does not exist: %s", installFromTar)
+	}
+
+	isInteractive := len(args) == 0 && installName == ""
+
+	// Determine installation name
+	distroName := installName
+	if distroName == "" {
+		// Generate default name from tar filename
+		tarBaseName := filepath.Base(installFromTar)
+		defaultName := strings.TrimSuffix(tarBaseName, ".tar")
+		defaultName = strings.ReplaceAll(defaultName, " ", "-")
+		defaultName = strings.ToLower(defaultName)
+
+		if isInteractive {
+			namePrompt := promptui.Prompt{
+				Label:   "Distribution name",
+				Default: defaultName,
+			}
+			if customName, err := namePrompt.Run(); err != nil {
+				return fmt.Errorf("failed to get distribution name: %w", err)
+			} else {
+				distroName = customName
+			}
+		} else {
+			distroName = defaultName
+		}
+	}
+
+	// Check if distro already exists
+	exists, err := wsl.IsDistroInstalled(distroName)
+	if err != nil {
+		return fmt.Errorf("failed to check existing distributions: %w", err)
+	}
+	if exists {
+		return fmt.Errorf("distribution '%s' already exists", distroName)
+	}
+
+	// Determine installation path
+	distroPath := installPath
+	if distroPath == "" {
+		cwd, _ := os.Getwd()
+		distroPath = filepath.Join(cwd, "wsl-distros", distroName)
+		if isInteractive {
+			pathPrompt := promptui.Prompt{
+				Label:   "Installation path",
+				Default: distroPath,
+			}
+			if customPath, err := pathPrompt.Run(); err != nil {
+				return fmt.Errorf("failed to get installation path: %w", err)
+			} else {
+				distroPath = customPath
+			}
+		}
+	}
+
+	if installWSLVersion != 1 && installWSLVersion != 2 {
+		return fmt.Errorf("invalid --version %d (must be 1 or 2)", installWSLVersion)
+	}
+
+	// Get absolute path to tar file
+	absTarPath, err := filepath.Abs(installFromTar)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute path for tar file: %w", err)
+	}
+
+	// Get file size
+	fileInfo, _ := os.Stat(absTarPath)
+	sizeInMB := float64(fileInfo.Size()) / 1024 / 1024
+
+	// Display configuration
+	fmt.Printf("\n%s\n", strings.Repeat("=", 60))
+	fmt.Printf("Installation Configuration\n")
+	fmt.Printf("%s\n", strings.Repeat("=", 60))
+	fmt.Printf("Source tar:   %s (%.2f MB)\n", filepath.Base(absTarPath), sizeInMB)
+	fmt.Printf("Name:         %s\n", distroName)
+	fmt.Printf("Path:         %s\n", distroPath)
+	fmt.Printf("WSL Version:  %d\n", installWSLVersion)
+	fmt.Printf("%s\n\n", strings.Repeat("=", 60))
+
+	// Import the distribution
+	fmt.Println("→ Importing to WSL...")
+	importOpts := wsl.ImportOptions{
+		Name:        distroName,
+		InstallPath: distroPath,
+		TarFilePath: absTarPath,
+		Version:     installWSLVersion,
+	}
+
+	if err := wsl.Import(importOpts); err != nil {
+		return fmt.Errorf("failed to import distribution '%s' to '%s': %w", distroName, distroPath, err)
+	}
+
+	fmt.Println("  ✓ Import completed successfully")
+
+	// Print success message with details
+	fmt.Println("\n" + strings.Repeat("=", 60))
+	fmt.Printf("✓ SUCCESS: WSL distribution installed from tar\n")
+	fmt.Println(strings.Repeat("=", 60))
+	fmt.Printf("Name:     %s\n", distroName)
+	fmt.Printf("Location: %s\n", distroPath)
+	fmt.Printf("Version:  WSL %d\n", installWSLVersion)
+	fmt.Printf("Source:   %s\n", absTarPath)
+	fmt.Println(strings.Repeat("=", 60))
+
+	// Parse extra vars for provisioning
+	var extraVarsSlice []string
+	if len(installExtraVars) > 0 {
+		extraVarsSlice = installExtraVars
+	}
+
+	// Create temp directory for provisioning if needed
+	cwd, _ := os.Getwd()
+	tempDir := filepath.Join(cwd, ".autowsl_tmp")
+
+	// Hyper Pipeline: Auto-provision if playbooks are specified
+	if len(installPlaybooks) > 0 {
+		// Use shared provisioning pipeline
+		err := runProvisioningPipeline(ProvisioningPipelineOptions{
+			DistroName:     distroName,
+			PlaybookInputs: installPlaybooks,
+			Tags:           installTags,
+			Verbose:        installVerbose,
+			ExtraVars:      extraVarsSlice,
+			TempDir:        tempDir,
+		})
+
+		if err != nil {
+			return nil // runProvisioningPipeline already printed errors
+		}
+	} else {
+		// No provisioning requested
+		fmt.Printf("\nLaunch with:  wsl -d %s\n", distroName)
+		fmt.Printf("List all:     autowsl list\n")
+		fmt.Printf("Provision:    autowsl provision %s\n\n", distroName)
+	}
+
+	return nil
 }

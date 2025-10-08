@@ -14,11 +14,8 @@ func TestListInstalledDistros(t *testing.T) {
   kali-linux             Stopped         2
 `
 
-	mock := &MockRunner{
-		Outputs: map[string]string{
-			"wsl.exe -l -v": fakeOutput,
-		},
-	}
+	mock := NewMockRunner()
+	mock.Outputs["wsl.exe -l -v"] = fakeOutput
 
 	client := wsl.NewClient(mock)
 	distros, err := client.ListInstalledDistros()
@@ -57,11 +54,8 @@ func TestIsDistroInstalled(t *testing.T) {
   Debian                 Stopped         2
 `
 
-	mock := &MockRunner{
-		Outputs: map[string]string{
-			"wsl.exe -l -v": fakeOutput,
-		},
-	}
+	mock := NewMockRunner()
+	mock.Outputs["wsl.exe -l -v"] = fakeOutput
 
 	client := wsl.NewClient(mock)
 
@@ -81,5 +75,40 @@ func TestIsDistroInstalled(t *testing.T) {
 	}
 	if exists {
 		t.Error("Expected NonExistent to not exist")
+	}
+}
+
+func TestListInstalledDistrosFallbackBasic(t *testing.T) {
+	// Simulate failure of -l -v and success of -l
+	mock := NewMockRunner()
+	mock.Outputs["wsl.exe -l"] = "Windows Subsystem for Linux Distributions:\nUbuntu-22.04 (Default)\nDebian\n"
+	mock.Errors["wsl.exe -l -v"] = &mockError{"exit status 0xffffffff"}
+
+	client := wsl.NewClient(mock)
+	distros, err := client.ListInstalledDistros()
+	if err != nil {
+		t.Fatalf("Expected no error on fallback, got %v", err)
+	}
+	if len(distros) != 2 {
+		t.Fatalf("Expected 2 distros, got %d", len(distros))
+	}
+	if distros[0].Name != "Ubuntu-22.04" || !distros[0].Default {
+		t.Errorf("Expected Ubuntu-22.04 default, got %+v", distros[0])
+	}
+}
+
+func TestListInstalledDistrosBenignFailure(t *testing.T) {
+	// Simulate both commands failing with a benign pre-initialization error
+	mock := NewMockRunner()
+	mock.Errors["wsl.exe -l -v"] = &mockError{"exit status 0xffffffff"}
+	mock.Errors["wsl.exe -l"] = &mockError{"exit status 0xffffffff"}
+
+	client := wsl.NewClient(mock)
+	distros, err := client.ListInstalledDistros()
+	if err != nil {
+		t.Fatalf("Expected benign failure to return empty slice without error, got %v", err)
+	}
+	if len(distros) != 0 {
+		t.Fatalf("Expected 0 distros, got %d", len(distros))
 	}
 }

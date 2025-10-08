@@ -10,6 +10,7 @@ import (
 // MockRunner is a test double for runner.Runner
 type MockRunner struct {
 	Outputs map[string]string // command -> stdout
+	Stderr  map[string]string // command -> stderr
 	Errors  map[string]error  // command -> error
 	Calls   []string          // track all commands called
 }
@@ -17,6 +18,7 @@ type MockRunner struct {
 func NewMockRunner() *MockRunner {
 	return &MockRunner{
 		Outputs: make(map[string]string),
+		Stderr:  make(map[string]string),
 		Errors:  make(map[string]error),
 		Calls:   make([]string, 0),
 	}
@@ -27,12 +29,12 @@ func (m *MockRunner) Run(name string, args ...string) (string, string, error) {
 	m.Calls = append(m.Calls, cmd)
 
 	if err, ok := m.Errors[cmd]; ok {
-		return "", "", err
+		return "", m.Stderr[cmd], err
 	}
 	if output, ok := m.Outputs[cmd]; ok {
-		return output, "", nil
+		return output, m.Stderr[cmd], nil
 	}
-	return "", "", nil
+	return "", m.Stderr[cmd], nil
 }
 
 func (m *MockRunner) RunWithInput(name string, stdin string, args ...string) (string, string, error) {

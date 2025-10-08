@@ -96,20 +96,7 @@ func selectInstalledDistroInteractive() (string, error) {
 }
 
 // selectInstalledDistro selects an installed distro either from args or interactively
-func selectInstalledDistro(args []string) (string, error) {
-	if len(args) > 0 {
-		// Verify it exists
-		exists, err := wsl.IsDistroInstalled(args[0])
-		if err != nil {
-			return "", fmt.Errorf("failed to check distribution: %w", err)
-		}
-		if !exists {
-			return "", fmt.Errorf("distribution '%s' does not exist", args[0])
-		}
-		return args[0], nil
-	}
-	return selectInstalledDistroInteractive()
-}
+// (selectInstalledDistro removed – previously unused; interactive selection handled where needed)
 
 // promptForPlaybooks prompts user to enter playbooks interactively
 func promptForPlaybooks() ([]string, error) {
@@ -181,7 +168,9 @@ func runProvisioningPipeline(opts ProvisioningPipelineOptions) error {
 		cwd, _ := os.Getwd()
 		opts.TempDir = filepath.Join(cwd, ".autowsl_tmp")
 	}
-	os.MkdirAll(opts.TempDir, 0755)
+	if err := os.MkdirAll(opts.TempDir, 0755); err != nil {
+		return fmt.Errorf("failed to create temp dir '%s': %w", opts.TempDir, err)
+	}
 
 	// Resolve playbooks
 	cwd, _ := os.Getwd()

@@ -101,7 +101,9 @@ func runProvision(cmd *cobra.Command, args []string) error {
 	// Create temp directory for downloads
 	cwd, _ := os.Getwd()
 	tempDir := filepath.Join(cwd, ".autowsl_tmp")
-	os.MkdirAll(tempDir, 0755)
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		return fmt.Errorf("failed to create temp directory: %w", err)
+	}
 
 	// Handle repo-based provisioning (legacy mode)
 	if provisionRepo != "" {

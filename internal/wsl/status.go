@@ -1,6 +1,7 @@
 package wsl
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -25,12 +26,36 @@ func (c *Client) CheckWSLInstalled() error {
 
 // ListInstalledDistros lists all currently installed WSL distributions
 func (c *Client) ListInstalledDistros() ([]InstalledDistro, error) {
-	output, _, err := c.runner.Run("wsl.exe", "-l", "-v")
-	if err != nil {
-		return nil, fmt.Errorf("failed to list WSL distributions: %w", err)
+	output, stderr, err := c.runner.Run("wsl.exe", "-l", "-v")
+	if err == nil {
+		return parseWSLList(output)
 	}
 
-	return parseWSLList(output)
+	// Fallback: attempt legacy command without version column
+	// This improves resilience on hosts where -v is unsupported or WSL is in a partially initialized state.
+	fallbackOut, fallbackErrStr, fallbackErr := c.runner.Run("wsl.exe", "-l")
+	if fallbackErr == nil {
+		return parseWSLListBasic(fallbackOut), nil
+	}
+
+	// If both commands failed, decide whether to treat as empty (benign) or propagate error.
+	// On some fresh systems a generic failure (exit status 0xffffffff) can occur before any distro is installed.
+	// Combine stderr plus underlying error messages (in case stderr is empty but Go error contains exit status)
+	combinedErrMsg := strings.Join([]string{stderr, fallbackErrStr, fmt.Sprint(err), fmt.Sprint(fallbackErr)}, "\n")
+	lowered := strings.ToLower(combinedErrMsg)
+	benignIndicators := []string{
+		"0xffffffff",                 // generic WSL failure often seen pre-initialization
+		"element not found",          // sometimes returned when feature pieces missing
+		"no installed distributions", // hypothetical message
+	}
+	for _, indicator := range benignIndicators {
+		if strings.Contains(lowered, indicator) {
+			return []InstalledDistro{}, nil
+		}
+	}
+
+	// Propagate a combined error for easier debugging.
+	return nil, fmt.Errorf("failed to list WSL distributions: %w | fallback: %v", err, fallbackErr)
 }
 
 // parseWSLList parses the output of "wsl -l -v"
@@ -76,6 +101,48 @@ func parseWSLList(output string) ([]InstalledDistro, error) {
 
 	return distros, nil
 }
+
+// parseWSLListBasic parses output of the legacy "wsl -l" (no -v) command.
+// Expected format (example):
+//
+//	Windows Subsystem for Linux Distributions:
+//	Ubuntu-22.04 (Default)
+//	Debian
+//
+// A leading * may or may not appear depending on Windows build. We tolerate both.
+func parseWSLListBasic(output string) []InstalledDistro {
+	var distros []InstalledDistro
+	output = strings.ReplaceAll(output, "\x00", "")
+	output = strings.TrimPrefix(output, "\ufeff")
+
+	lines := strings.Split(output, "\n")
+	for _, raw := range lines {
+		line := strings.TrimSpace(raw)
+		if line == "" {
+			continue
+		}
+		l := strings.ToLower(line)
+		if strings.HasPrefix(l, "windows subsystem for linux") || strings.Contains(l, "distributions:") || strings.HasPrefix(l, "the following") {
+			continue // header lines
+		}
+		// Remove (Default) tag if present
+		defaultFlag := false
+		if strings.Contains(line, "(Default)") {
+			defaultFlag = true
+			line = strings.TrimSpace(strings.ReplaceAll(line, "(Default)", ""))
+		}
+		// Remove leading * if present
+		line = strings.TrimLeft(line, "* ")
+		if line == "" {
+			continue
+		}
+		distros = append(distros, InstalledDistro{Name: line, Default: defaultFlag})
+	}
+	return distros
+}
+
+// Provide an exported helper only for tests (optional) - not exporting to avoid API surface increase.
+var _ = errors.New // silence unused import if build tags exclude tests using errors
 
 // IsDistroInstalled checks if a specific distribution is installed
 func (c *Client) IsDistroInstalled(name string) (bool, error) {

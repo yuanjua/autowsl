@@ -70,14 +70,15 @@ jobs:
         run: |
           $name = "${{ matrix.distro.test-name }}"
           $listOutput = ./autowsl.exe list
-          if ($listOutput -notmatch $name) {
+          if ($listOutput -match $name) {
+            Write-Host "✓ Distro '$name' successfully verified in output."
+          } else {
             Write-Host "--- Full 'autowsl list' output ---"
             Write-Host $listOutput
             Write-Host "------------------------------------"
-            Write-Host "Distro '$name' not found in list output!"
+            Write-Host "ERROR: Distro '$name' was not found in the list!"
             exit 1
           }
-          Write-Host "✓ Distro '$name' successfully verified."      
 
       - name: Verify curl
         run: wsl -d "${{ matrix.distro.test-name }}" -- curl --version

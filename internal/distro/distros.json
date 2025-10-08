@@ -1,0 +1,142 @@
+{
+  "distributions": [
+    {
+      "group": "Ubuntu",
+      "version": "Ubuntu",
+      "architecture": "x64, arm64",
+      "url": "https://aka.ms/wslubuntu"
+    },
+    {
+      "group": "Ubuntu",
+      "version": "Ubuntu 24.04 LTS",
+      "architecture": "x64, arm64",
+      "url": "https://wslstorestorage.blob.core.windows.net/wslblob/Ubuntu2404-240425.AppxBundle"
+    },
+    {
+      "group": "Ubuntu",
+      "version": "Ubuntu 22.04 LTS",
+      "architecture": "x64, arm64",
+      "url": "https://aka.ms/wslubuntu2204"
+    },
+    {
+      "group": "Ubuntu",
+      "version": "Ubuntu 20.04 LTS",
+      "architecture": "x64, arm64",
+      "url": "https://aka.ms/wslubuntu2004"
+    },
+    {
+      "group": "Ubuntu",
+      "version": "Ubuntu 18.04 LTS",
+      "architecture": "x64",
+      "url": "https://aka.ms/wsl-ubuntu-1804"
+    },
+    {
+      "group": "Ubuntu",
+      "version": "Ubuntu 18.04 LTS ARM",
+      "architecture": "arm64",
+      "url": "https://aka.ms/wsl-ubuntu-1804-arm"
+    },
+    {
+      "group": "Ubuntu",
+      "version": "Ubuntu 16.04",
+      "architecture": "x64",
+      "url": "https://aka.ms/wsl-ubuntu-1604"
+    },
+    {
+      "group": "Debian",
+      "version": "Debian GNU/Linux",
+      "architecture": "x64, arm64",
+      "url": "https://aka.ms/wsl-debian-gnulinux"
+    },
+    {
+      "group": "Kali Linux",
+      "version": "Kali Linux Rolling",
+      "architecture": "-",
+      "url": "https://aka.ms/wsl-kali-linux-new"
+    },
+    {
+      "group": "Oracle Linux",
+      "version": "Oracle Linux 9.1",
+      "architecture": "x64",
+      "url": "https://publicwsldistros.blob.core.windows.net/wsldistrostorage/OracleLinux_9.1-230428.Appx"
+    },
+    {
+      "group": "Oracle Linux",
+      "version": "Oracle Linux 8.7",
+      "architecture": "x64",
+      "url": "https://publicwsldistros.blob.core.windows.net/wsldistrostorage/OracleLinux_8.7-230428.Appx"
+    },
+    {
+      "group": "Oracle Linux",
+      "version": "Oracle Linux 8.5",
+      "architecture": "x64",
+      "url": "https://aka.ms/wsl-oraclelinux-8-5"
+    },
+    {
+      "group": "Oracle Linux",
+      "version": "Oracle Linux 7.9",
+      "architecture": "x64",
+      "url": "https://aka.ms/wsl-oraclelinux-7-9"
+    },
+    {
+      "group": "openSUSE",
+      "version": "openSUSE Tumbleweed",
+      "architecture": "x64",
+      "url": "https://aka.ms/wsl-opensuse-tumbleweed"
+    },
+    {
+      "group": "openSUSE",
+      "version": "openSUSE Leap 15.6",
+      "architecture": "x64",
+      "url": "https://publicwsldistros.blob.core.windows.net/wsldistrostorage/SUSELeap15p6-240801_x64.Appx"
+    },
+    {
+      "group": "openSUSE",
+      "version": "openSUSE Leap 15.3",
+      "architecture": "x64",
+      "url": "https://aka.ms/wsl-opensuseleap15-3"
+    },
+    {
+      "group": "openSUSE",
+      "version": "openSUSE Leap 15.2",
+      "architecture": "x64",
+      "url": "https://aka.ms/wsl-opensuseleap15-2"
+    },
+    {
+      "group": "SUSE Linux Enterprise Server",
+      "version": "SUSE Linux Enterprise Server 15 SP6",
+      "architecture": "x64",
+      "url": "https://publicwsldistros.blob.core.windows.net/wsldistrostorage/SUSELinuxEnterprise15SP6-241001_x64.Appx"
+    },
+    {
+      "group": "SUSE Linux Enterprise Server",
+      "version": "SUSE Linux Enterprise Server 15 SP5",
+      "architecture": "x64",
+      "url": "https://publicwsldistros.blob.core.windows.net/wsldistrostorage/SUSELinuxEnterprise15_SP5-240801.Appx"
+    },
+    {
+      "group": "SUSE Linux Enterprise Server",
+      "version": "SUSE Linux Enterprise Server 15 SP3",
+      "architecture": "x64",
+      "url": "https://aka.ms/wsl-SUSELinuxEnterpriseServer15SP3"
+    },
+    {
+      "group": "SUSE Linux Enterprise Server",
+      "version": "SUSE Linux Enterprise Server 15 SP2",
+      "architecture": "x64",
+      "url": "https://aka.ms/wsl-SUSELinuxEnterpriseServer15SP2"
+    },
+    {
+      "group": "SUSE Linux Enterprise Server",
+      "version": "SUSE Linux Enterprise Server 12",
+      "architecture": "x64",
+      "url": "https://aka.ms/wsl-sles-12"
+    },
+    {
+      "group": "Fedora Remix",
+      "version": "Fedora Remix for WSL",
+      "architecture": "x64, arm64",
+      "url": "https://github.com/WhitewaterFoundry/Fedora-Remix-for-WSL/releases"
+    }
+  ]
+}

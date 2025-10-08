@@ -1,0 +1,102 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  e2e-test:
+    name: E2E Test - ${{ matrix.distro }}
+    runs-on: windows-latest
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        distro:
+          - name: "Ubuntu 22.04 LTS"
+            test-name: "ubuntu-2204-test"
+          - name: "Ubuntu 24.04 LTS"
+            test-name: "ubuntu-2404-test"
+          - name: "Debian"
+            test-name: "debian-test"
+          - name: "Kali Linux"
+            test-name: "kali-test"
+          - name: "openSUSE Tumbleweed"
+            test-name: "opensuse-tumbleweed-test"
+          - name: "Oracle Linux 9.5"
+            test-name: "oracle-9-test"
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+      
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\AppData\Local\go-build
+            ~\go\pkg\mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      
+      - name: Build autowsl
+        run: go build -o autowsl.exe .
+      
+      - name: Verify WSL installation
+        run: wsl --status
+      
+      - name: Install distribution and provision with curl
+        run: |
+          .\autowsl.exe install "${{ matrix.distro.name }}" --name "${{ matrix.distro.test-name }}" --playbooks curl --verbose
+        timeout-minutes: 30
+      
+      - name: Verify distribution is installed
+        run: |
+          $output = wsl -l -v
+          if ($output -notmatch "${{ matrix.distro.test-name }}") {
+            Write-Error "Distribution ${{ matrix.distro.test-name }} not found in WSL list"
+            exit 1
+          }
+          Write-Host "Distribution installed successfully"
+      
+      - name: Verify curl is installed
+        run: |
+          $curlVersion = wsl -d "${{ matrix.distro.test-name }}" -- curl --version
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "curl not found in ${{ matrix.distro.test-name }}"
+            exit 1
+          }
+          Write-Host "curl installed successfully: $curlVersion"
+      
+      - name: Test curl functionality
+        run: |
+          $result = wsl -d "${{ matrix.distro.test-name }}" -- curl -s -o /dev/null -w "%{http_code}" https://www.google.com
+          if ($result -ne "200") {
+            Write-Error "curl failed to fetch URL, HTTP status: $result"
+            exit 1
+          }
+          Write-Host "curl functionality verified (HTTP $result)"
+      
+      - name: Cleanup - Remove test distribution
+        if: always()
+        run: |
+          wsl --unregister "${{ matrix.distro.test-name }}"
+        continue-on-error: true
+      
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-logs-${{ matrix.distro.test-name }}
+          path: |
+            .autowsl_tmp/
+          retention-days: 7

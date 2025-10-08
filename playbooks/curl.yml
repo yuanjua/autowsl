@@ -1,0 +1,68 @@
+---
+# Alias playbook: curl
+# Purpose: ensure curl is installed across all supported WSL distributions.
+# 
+# Supported Distributions (from winget catalog):
+#   - Ubuntu (all versions: 18.04, 20.04, 22.04, 24.04)
+#   - Debian
+#   - Kali Linux
+#   - openSUSE (Tumbleweed, Leap 15.6)
+#   - SUSE Linux Enterprise 15 SP6
+#   - Oracle Linux (7.9, 8.7, 8.10, 9.1, 9.5)
+#
+# This playbook uses ansible_os_family for broad compatibility:
+#   - Debian family: Ubuntu, Debian, Kali Linux
+#   - RedHat family: Oracle Linux
+#   - Suse family: openSUSE, SUSE Linux Enterprise
+
+- name: Ensure curl is installed
+  hosts: localhost
+  connection: local
+  become: yes
+  tasks:
+    - name: Install curl on Debian-based distributions (Ubuntu, Debian, Kali)
+      apt:
+        name: curl
+        state: present
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Install curl on RedHat-based distributions (Oracle Linux)
+      yum:
+        name: curl
+        state: present
+      when: ansible_os_family == "RedHat" and ansible_distribution_major_version|int < 8
+
+    - name: Install curl on Oracle Linux 8+ using dnf
+      dnf:
+        name: curl
+        state: present
+      when: ansible_os_family == "RedHat" and ansible_distribution_major_version|int >= 8
+
+    - name: Install curl on SUSE-based distributions (openSUSE, SUSE Linux Enterprise)
+      zypper:
+        name: curl
+        state: present
+      when: ansible_os_family == "Suse"
+
+    - name: Install curl on Arch Linux (for future support)
+      pacman:
+        name: curl
+        state: present
+      when: ansible_os_family == "Archlinux"
+
+    - name: Install curl on Alpine Linux (for future support)
+      apk:
+        name: curl
+        state: present
+      when: ansible_os_family == "Alpine"
+
+    - name: Show installed curl version
+      command: curl --version
+      register: curl_version
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Display result
+      debug:
+        msg: "curl provisioning finished (version info may be above)."

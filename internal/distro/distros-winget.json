@@ -1,0 +1,94 @@
+{
+  "distributions": [
+    {
+      "group": "Ubuntu",
+      "version": "Ubuntu",
+      "architecture": "x64, arm64",
+      "packageId": "Canonical.Ubuntu"
+    },
+    {
+      "group": "Ubuntu",
+      "version": "Ubuntu 24.04 LTS",
+      "architecture": "x64, arm64",
+      "packageId": "Canonical.Ubuntu.2404"
+    },
+    {
+      "group": "Ubuntu",
+      "version": "Ubuntu 22.04 LTS",
+      "architecture": "x64, arm64",
+      "packageId": "Canonical.Ubuntu.2204"
+    },
+    {
+      "group": "Ubuntu",
+      "version": "Ubuntu 20.04 LTS",
+      "architecture": "x64, arm64",
+      "packageId": "Canonical.Ubuntu.2004"
+    },
+    {
+      "group": "Ubuntu",
+      "version": "Ubuntu 18.04 LTS",
+      "architecture": "x64",
+      "packageId": "Canonical.Ubuntu.1804"
+    },
+    {
+      "group": "Debian",
+      "version": "Debian",
+      "architecture": "x64, arm64",
+      "packageId": "Debian.Debian"
+    },
+    {
+      "group": "Kali",
+      "version": "Kali Linux",
+      "architecture": "x64, arm64",
+      "packageId": "OffSec.KaliLinux"
+    },
+    {
+      "group": "openSUSE",
+      "version": "openSUSE Tumbleweed",
+      "architecture": "x64",
+      "packageId": "SUSE.openSUSE.Tumbleweed"
+    },
+    {
+      "group": "openSUSE",
+      "version": "openSUSE Leap 15.6",
+      "architecture": "x64",
+      "packageId": "SUSE.openSUSE.Leap.15.6"
+    },
+    {
+      "group": "SUSE",
+      "version": "SUSE Linux Enterprise 15 SP6",
+      "architecture": "x64",
+      "packageId": "SUSE.SUSE.15SP6"
+    },
+    {
+      "group": "Oracle Linux",
+      "version": "Oracle Linux 9.5",
+      "architecture": "x64, arm64",
+      "packageId": "Oracle.OracleLinux.9.5"
+    },
+    {
+      "group": "Oracle Linux",
+      "version": "Oracle Linux 9.1",
+      "architecture": "x64, arm64",
+      "packageId": "Oracle.OracleLinux.9.1"
+    },
+    {
+      "group": "Oracle Linux",
+      "version": "Oracle Linux 8.10",
+      "architecture": "x64, arm64",
+      "packageId": "Oracle.OracleLinux.8.10"
+    },
+    {
+      "group": "Oracle Linux",
+      "version": "Oracle Linux 8.7",
+      "architecture": "x64, arm64",
+      "packageId": "Oracle.OracleLinux.8.7"
+    },
+    {
+      "group": "Oracle Linux",
+      "version": "Oracle Linux 7.9",
+      "architecture": "x64",
+      "packageId": "Oracle.OracleLinux.7.9"
+    }
+  ]
+}

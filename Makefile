@@ -1,127 +1,158 @@
-.PHONY: build run clean install test test-unit test-integration test-coverage test-verbose lint fmt vet help demo build-all
+.PHONY: build run clean install test test-unit test-integration test-coverage test-verbose lint fmt vet help demo build-all dev pre-commit ci test-ci coverage-html release-build release-checksums dist-clean build-matrix e2e
+
+# ============================================================================
+# Variables (override on command line, e.g. `make VERSION=v1.2.3 release-build`)
+# ============================================================================
+PKG             := github.com/yuanjua/autowsl
+VERSION         ?= dev
+LDFLAGS_BASE    := -s -w
+LDFLAGS_VERSION := -X $(PKG)/cmd.Version=$(VERSION)
+LDFLAGS         := $(LDFLAGS_BASE) $(LDFLAGS_VERSION)
+GO              ?= go
+RACE            ?= -race
+
+# Detect host OS (used for naming)
+HOST_OS := $(shell uname | tr '[:upper:]' '[:lower:]' 2>/dev/null || echo windows)
+HOST_ARCH := $(shell uname -m 2>/dev/null || echo amd64)
 
 # Build the application
-build:
-	go build -o autowsl.exe .
+build: ## Build (unversioned) for current OS
+	$(GO) build -o autowsl.exe .
 
 # Build with version info
-build-release:
-	go build -ldflags="-s -w" -o autowsl.exe .
+build-release: ## Build (stripped) embedding VERSION
+	$(GO) build -ldflags="$(LDFLAGS)" -o autowsl.exe .
 
 # Run the application
-run:
-	go run main.go
+run: ## Run main directly
+	$(GO) run main.go
 
 # Clean build artifacts
-clean:
-	rm -f autowsl.exe
-	rm -rf .autowsl_tmp/
+clean: ## Remove build artifacts
+	rm -f autowsl autowsl.exe
+	rm -rf .autowsl_tmp/ dist/ coverage.* coverage.txt coverage.out coverage.html
 	rm -f *.appx *.appxbundle *.tar *.tar.gz
+
+dist-clean: ## Clean only dist directory
 	rm -rf dist/
 
 # Install dependencies
-install:
-	go mod download
-	go mod tidy
+install: ## Sync and download modules
+	$(GO) mod download
+	$(GO) mod tidy
 
 # Run all tests
-test:
-	go test ./...
+test: ## Run all tests (no race / coverage)
+	$(GO) test ./...
 
 # Run tests with verbose output
-test-verbose:
-	go test -v ./...
+test-verbose: ## Verbose tests
+	$(GO) test -v ./...
 
 # Run unit tests only (fast)
-test-unit:
-	go test -short ./...
+test-unit: ## Fast unit tests (short)
+	$(GO) test -short ./...
+
+test-ci: ## Mirrors CI test command (race + coverage on tests folder)
+	$(GO) test -v $(RACE) -coverprofile=coverage.txt -covermode=atomic ./tests/...
 
 # Run tests with coverage
-test-coverage:
-	go test -cover ./...
-	go test -coverprofile=coverage.out ./...
-	go tool cover -html=coverage.out -o coverage.html
-	@echo "Coverage report generated: coverage.html"
+test-coverage: ## Full project coverage (includes all pkgs)
+	$(GO) test -coverprofile=coverage.out -covermode=atomic ./...
+	@echo "coverage.out written"
+	$(GO) tool cover -func=coverage.out | grep total || true
+	$(GO) tool cover -html=coverage.out -o coverage.html
+	@echo "HTML coverage: coverage.html"
+
+coverage-html: ## Open (generate) HTML from existing coverage.txt
+	@[ -f coverage.txt ] || { echo "coverage.txt missing - run test-ci first"; exit 1; }
+	$(GO) tool cover -html=coverage.txt -o coverage.html
+	@echo "HTML coverage: coverage.html"
 
 # Run integration tests (requires WSL)
-test-integration:
-	go test -v ./tests/...
+test-integration: ## Alias to run extended tests (currently same set)
+	$(GO) test -v ./tests/...
 
 # Lint code
-lint:
-	@command -v golangci-lint >/dev/null 2>&1 || { echo "golangci-lint not installed. Run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest"; exit 1; }
-	golangci-lint run
+lint: ## Run golangci-lint (installs if missing)
+	@command -v golangci-lint >/dev/null 2>&1 || { echo "Installing golangci-lint"; $(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; }
+	golangci-lint run --timeout=5m
 
 # Format code
-fmt:
-	go fmt ./...
+fmt: ## Go format
+	$(GO) fmt ./...
 	gofmt -s -w .
 
 # Run go vet
-vet:
-	go vet ./...
+vet: ## Go vet
+	$(GO) vet ./...
 
 # Check for common issues
-check: fmt vet
-	go test -short ./...
+check: fmt vet ## Basic formatting + vet + short tests
+	$(GO) test -short ./...
 
 # Show help for all commands
-help:
-	@./autowsl.exe --help
+help: ## Show CLI help for primary commands
+	@./autowsl.exe --help || true
 	@echo ""
-	@./autowsl.exe install --help
+	@./autowsl.exe install --help 2>/dev/null || true
 	@echo ""
-	@./autowsl.exe provision --help
+	@./autowsl.exe provision --help 2>/dev/null || true
 
 # Quick demo - show all commands
-demo:
-	@echo "=== AutoWSL Commands ==="
-	@echo ""
-	@echo "1. List installed distributions:"
-	@echo "   ./autowsl.exe list"
-	@echo ""
-	@echo "2. Install a distribution (interactive):"
-	@echo "   ./autowsl.exe install"
-	@echo ""
-	@echo "3. Install a specific distribution:"
-	@echo "   ./autowsl.exe install \"Ubuntu 22.04 LTS\" --name my-ubuntu --path ./wsl-distros/my-ubuntu"
-	@echo ""
-	@echo "4. Install with auto-provisioning:"
-	@echo "   ./autowsl.exe install \"Ubuntu 22.04 LTS\" --playbooks curl,default"
-	@echo ""
-	@echo "5. Provision existing distribution:"
-	@echo "   ./autowsl.exe provision my-ubuntu --playbooks default"
-	@echo ""
-	@echo "6. List playbook aliases:"
-	@echo "   ./autowsl.exe aliases"
-	@echo ""
-	@echo "7. Download distribution package:"
-	@echo "   ./autowsl.exe download \"Ubuntu 22.04 LTS\""
-	@echo ""
-	@echo "8. Backup a distribution:"
-	@echo "   ./autowsl.exe backup <name>"
-	@echo ""
-	@echo "9. Remove a distribution:"
-	@echo "   ./autowsl.exe remove <name>"
+demo: ## Show common CLI usage examples
+	@echo "=== AutoWSL Quick Demo ==="
+	@echo "List:              ./autowsl.exe list"
+	@echo "Interactive install: ./autowsl.exe install"
+	@echo "Specific install:   ./autowsl.exe install 'Ubuntu 22.04 LTS' --name my-ubuntu"
+	@echo "Install + curl:     ./autowsl.exe install 'Ubuntu 22.04 LTS' --playbooks curl"
+	@echo "Provision:          ./autowsl.exe provision my-ubuntu --playbooks curl"
+	@echo "Aliases:            ./autowsl.exe aliases"
+	@echo "Download only:      ./autowsl.exe download 'Ubuntu 22.04 LTS'"
+	@echo "Backup:             ./autowsl.exe backup my-ubuntu"
+	@echo "Remove:             ./autowsl.exe remove my-ubuntu"
 
 # Build for multiple platforms
-build-all:
+build-all: ## Cross-compile common platforms (non-arm linux only)
 	@mkdir -p dist
-	GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o dist/autowsl-windows-amd64.exe .
-	GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/autowsl-linux-amd64 .
-	GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o dist/autowsl-darwin-amd64 .
-	GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o dist/autowsl-darwin-arm64 .
-	@echo "Built binaries in dist/"
+	GOOS=windows GOARCH=amd64 $(GO) build -ldflags="$(LDFLAGS)" -o dist/autowsl-windows-amd64.exe .
+	GOOS=linux   GOARCH=amd64 $(GO) build -ldflags="$(LDFLAGS)" -o dist/autowsl-linux-amd64 .
+	GOOS=darwin  GOARCH=amd64 $(GO) build -ldflags="$(LDFLAGS)" -o dist/autowsl-darwin-amd64 .
+	GOOS=darwin  GOARCH=arm64 $(GO) build -ldflags="$(LDFLAGS)" -o dist/autowsl-darwin-arm64 .
+	@echo "Built binaries in dist/ (version: $(VERSION))"
+
+build-matrix: build-all ## Alias (aligns with CI naming)
 
 # Development workflow
-dev: clean build test
-	@echo "✓ Development build complete"
+dev: clean install fmt vet lint test ## Full local dev cycle
+	@echo "✓ Development build complete (version $(VERSION))"
 
 # Pre-commit checks
-pre-commit: fmt vet test-unit
+pre-commit: fmt vet lint test-unit ## Quick pre-push hygiene
 	@echo "✓ Pre-commit checks passed"
 
 # CI/CD simulation
-ci: install fmt vet test-coverage
-	@echo "✓ CI checks complete"
+ci: install lint test-ci build-release ## Simulate CI pipeline locally
+	@echo "✓ CI checks complete (coverage in coverage.txt)"
+
+# Release helpers -----------------------------------------------------------
+release-build: ## Build Windows binaries for release (amd64 + arm64) with VERSION
+	@mkdir -p dist
+	GOOS=windows GOARCH=amd64 $(GO) build -ldflags="$(LDFLAGS)" -o dist/autowsl-windows-amd64.exe .
+	GOOS=windows GOARCH=arm64 $(GO) build -ldflags="$(LDFLAGS)" -o dist/autowsl-windows-arm64.exe .
+	@echo "Built release binaries (version: $(VERSION)) in dist/"
+
+release-checksums: ## Generate SHA256 checksums for dist binaries
+	@cd dist && shasum -a 256 autowsl-* > checksums.txt || (cd dist && sha256sum autowsl-* > checksums.txt)
+	@echo "checksums.txt written under dist/"
+
+# Simple local E2E helper (WSL required). Usage:
+#   make e2e DISTRO="Ubuntu 22.04 LTS" NAME=ubuntu-2204-test PLAYBOOKS=curl
+DISTRO ?= Ubuntu 22.04 LTS
+NAME   ?= $(shell echo $(DISTRO) | tr '[:upper:]' '[:lower:]' | tr ' ' '-' )
+PLAYBOOKS ?=
+e2e: build-release ## Install a distro (and optionally provision) locally
+	@echo "-> Installing $(DISTRO) as $(NAME) (playbooks: $(PLAYBOOKS))"
+	./autowsl.exe install "$(DISTRO)" --name "$(NAME)" $(if $(PLAYBOOKS),--playbooks $(PLAYBOOKS),)
+	@echo "Run: wsl -d $(NAME) -- bash -l"
 

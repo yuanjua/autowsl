@@ -62,10 +62,7 @@ func TestWSLImportValidation(t *testing.T) {
 				t.Errorf("Expected no error, got: %v", err)
 			}
 
-			if tt.expectError && err != nil {
-				// Just verify we got an error, don't check exact message
-				// as file existence checks might vary
-			}
+			// If an error was expected we already asserted it's non-nil; nothing else to do
 		})
 	}
 }

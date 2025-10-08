@@ -68,10 +68,17 @@ jobs:
       - name: Verify install
         shell: pwsh
         run: |
-          $name='${{ matrix.distro.test-name }}'
-          wsl -l -v
-          if ((wsl -l -v) -notmatch $name) { Write-Host "Distro $name not found"; exit 1 }
-      
+          $name = "${{ matrix.distro.test-name }}"
+          $listOutput = ./autowsl.exe list
+          if ($listOutput -notmatch $name) {
+            Write-Host "--- Full 'autowsl list' output ---"
+            Write-Host $listOutput
+            Write-Host "------------------------------------"
+            Write-Host "Distro '$name' not found in list output!"
+            exit 1
+          }
+          Write-Host "✓ Distro '$name' successfully verified."      
+
       - name: Verify curl
         run: wsl -d "${{ matrix.distro.test-name }}" -- curl --version
         shell: pwsh

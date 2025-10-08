@@ -47,10 +47,7 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
-      
-      - name: Install winget
-        uses: Cyberboss/install-winget@v1
-      
+            
       - name: Setup WSL
         uses: Vampire/setup-wsl@v6
       

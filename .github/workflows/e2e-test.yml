@@ -64,6 +64,12 @@ jobs:
         run: |
           .\autowsl.exe install "${{ matrix.distro.name }}" --name "${{ matrix.distro.test-name }}"
           .\autowsl.exe provision "${{ matrix.distro.test-name }}" --playbooks systemd
+          
+          # Restart WSL to activate systemd before provisioning SSH
+          Write-Host "Restarting WSL to activate systemd..."
+          wsl --terminate "${{ matrix.distro.test-name }}"
+          Start-Sleep -Seconds 2
+          
           .\autowsl.exe provision "${{ matrix.distro.test-name }}" --playbooks ssh --extra-vars ssh_port=2222
           .\autowsl.exe copy "${{ matrix.distro.test-name }}" --name "${{ matrix.distro.test-name }}-copy"
           

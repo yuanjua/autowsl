@@ -6,6 +6,11 @@ This tool simplifies the entire WSL lifecycle, from installing a new distributio
 
 ## Installation
 
+Make sure WSL is already installed.
+```bash
+wsl --install --no-distribution
+```
+
 To get started, you'll need Go (version 1.21+) installed.
 
 **Clone the repository:**
@@ -27,26 +32,17 @@ go build -o autowsl.exe .
 
 ### Simple Interactive Install
 
-**Installation**: This is the easiest way to install a new WSL distribution. The tool will guide you through every step.
+**Installation**: You will be prompted to install a distribution to a custom installation path.
 
 ```bash
 ./autowsl.exe install
 ```
 
-You will be prompted to:
-- Select a distribution from the official catalog
-- Provide a custom name for your new environment
-- Choose a custom installation path (perfect for non-C: drives)
-
-**Provisioning**: Configure an already-installed distribution with Ansible playbooks. The tool will guide you through selecting a distribution and playbook.
+**Provisioning**: Setup environment with Ansible playbooks. You will be prompted to select an installed WSL distribution and enter playbook(s) to run (e.g. ssh)
 
 ```bash
 ./autowsl.exe provision
 ```
-
-You will be prompted to:
-- Select an installed WSL distribution
-- Enter playbook(s) to run (default: none)
 
 ### Non-Interactive Install
 
@@ -59,15 +55,10 @@ For scripting or power users, you can provide all the details as command-line fl
 
 Need to restart in order to enable systemd:
 ```bash
-# Teminate then restart 
 wsl --terminate <distro>
-wsl -d <distro>
-
-# This would terminate all
-# wsl --shutdown
 ```
 
-SSH service is installed by the playbook:
+After running the above example, SSH service is installed by the playbook:
 
 ```bash
 root@yuanzhoupc:/mnt/e/work/projects/autowsl# systemctl status ssh.service 

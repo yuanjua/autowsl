@@ -241,7 +241,16 @@ func ensurePackage(distroName, commandName, packageName string) error {
 			// It wasn't Kali, so no update has been run yet.
 			fmt.Println("Running apt-get update...")
 			if err := runWslCommand(distroName, pm.updateCmd); err != nil {
-				return fmt.Errorf("apt-get update failed: %w", err)
+				// If apt-get update fails, try to fix broken repositories
+				fmt.Printf("Warning: apt-get update failed, attempting to fix broken sources...\n")
+				fixCmd := "sudo sed -i '/bullseye-backports/d' /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true"
+				_ = runWslCommand(distroName, fixCmd)
+
+				// Try update again after fixing
+				if err := runWslCommand(distroName, pm.updateCmd); err != nil {
+					return fmt.Errorf("apt-get update failed even after attempting to fix broken sources: %w", err)
+				}
+				fmt.Println("Successfully fixed broken repositories and updated package lists.")
 			}
 		}
 	}

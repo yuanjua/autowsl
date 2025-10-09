@@ -46,28 +46,50 @@ You will be prompted to:
 
 You will be prompted to:
 - Select an installed WSL distribution
-- Enter playbook(s) to run (default: `curl`)
-
-Playbooks can be specified as:
-- **Built-in alias**: `curl` (installs curl on all supported distros)
-- **Local file**: `./my-setup.yml` or `/full/path/to/playbook.yml`
-- **URL**: `https://example.com/playbook.yml`
-- **Git repository**: Use `--repo` flag to clone and run playbooks
-- **Multiple**: `curl,./dev.yml` (comma-separated)
+- Enter playbook(s) to run (default: none)
 
 ### Non-Interactive Install
 
-For scripting or power users, you can provide all the details as command-line flags. This allows for one-command, end-to-end setup and provisioning.
+For scripting or power users, you can provide all the details as command-line flags. This allows for one-command, end-to-end setup and provisioning. 
 
 ```bash
-# Example: Install Ubuntu 22.04, name it "dev-box", install to D:\WSL, and run the 'curl' playbook
-./autowsl.exe install "Ubuntu 22.04 LTS" --name dev-box --path D:\WSL\dev --playbooks curl
+# Example: Install Ubuntu 22.04, name it "dev-box", install to D:\WSL, and run the selected playbooks
+./autowsl.exe install "Ubuntu" --name ub-dev --path ./wsl-distros/ub-dev --playbooks systemd,ssh --extra-vars ssh_port=2224
 ```
 
-- `"Ubuntu 22.04 LTS"`: The distro to install from the catalog
-- `--name`: Your custom name for the WSL instance
-- `--path`: The custom installation directory
-- `--playbooks`: A comma-separated list of built-in (aliases) or custom playbooks to run after installation
+Need to restart in order to enable systemd:
+```bash
+# Teminate then restart 
+wsl --terminate <distro>
+wsl -d <distro>
+
+# This would terminate all
+# wsl --shutdown
+```
+
+SSH service is installed by the playbook:
+
+```bash
+root@yuanzhoupc:/mnt/e/work/projects/autowsl# systemctl status ssh.service 
+● ssh.service - OpenBSD Secure Shell server
+     Loaded: loaded (/lib/systemd/system/ssh.service; enabled; vendor preset: enabled)
+     Active: active (running) since Thu 2025-10-09 18:15:18 CST; 11s ago
+       Docs: man:sshd(8)
+             man:sshd_config(5)
+   Main PID: 163 (sshd)
+      Tasks: 1 (limit: 19078)
+     Memory: 5.3M
+        CPU: 22ms
+     CGroup: /system.slice/ssh.service
+             └─163 "sshd: /usr/sbin/sshd -D [listener] 0 of 10-100 startups"
+
+Oct 09 18:15:18 yuanzhoupc systemd[1]: Starting OpenBSD Secure Shell server...
+Oct 09 18:15:18 yuanzhoupc sshd[163]: Server listening on 0.0.0.0 port 2224.
+Oct 09 18:15:18 yuanzhoupc sshd[163]: Server listening on :: port 2224.
+Oct 09 18:15:18 yuanzhoupc systemd[1]: Started OpenBSD Secure Shell server.
+```
+
+Install from file:
 
 ```bash
 ./autowsl.exe install --from welcome-to-docker.tar --name docker-welcome --path ./wsl-distros/docker-test
@@ -77,33 +99,19 @@ This command shows using `--from` to create distribution from local `.tar` file.
 **Provision existing distribution:**
 
 ```bash
-# Provision with built-in alias
-./autowsl.exe provision ubuntu-2204 --playbooks curl
+# Provision with built-in alias with extra variables
+./autowsl.exe provision ubuntu-2204 --playbooks curl,systemd,ssh --extra-vars ssh_port=2224
 
 # Provision with local playbook file
 ./autowsl.exe provision debian --playbooks ./my-setup.yml
 
-# Provision with remote playbook URL
-./autowsl.exe provision kali-linux --playbooks https://raw.githubusercontent.com/user/repo/main/setup.yml
-
-# Provision from Git repository
-./autowsl.exe provision ubuntu-2204 --repo https://github.com/user/ansible-playbooks
-
-# Provision with multiple playbooks
-./autowsl.exe provision ubuntu-2204 --playbooks curl,./dev.yml,./docker.yml
-
 # Provision with Ansible tags
 ./autowsl.exe provision ubuntu-2204 --playbooks ./setup.yml --tags docker,nodejs
-
-# Provision with extra variables
-./autowsl.exe provision debian --playbooks ./setup.yml --extra-vars user=john --extra-vars env=dev
 ```
 
 ### Other Commands
 
 - `autowsl list`: See all your installed WSL distributions
-- `autowsl provision <name>`: Configure an existing distro with Ansible playbooks
-- `autowsl aliases`: List available built-in playbooks (PRs are welcome)
 - `autowsl -h`: For more details
 
 ## For Developers

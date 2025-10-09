@@ -76,7 +76,6 @@
         block: |
           [boot]
           systemd=true
-          timeout={{ systemd_timeout | default('30') }}
         marker: "# {mark} ANSIBLE MANAGED BLOCK - systemd"
         create: yes
       when: not has_boot_section
@@ -86,15 +85,6 @@
         path: /etc/wsl.conf
         regexp: '^#?\s*systemd\s*='
         line: "systemd=true"
-        insertafter: '^\[boot\]'
-        state: present
-      when: has_boot_section
-
-    - name: Set boot timeout in existing [boot] section
-      lineinfile:
-        path: /etc/wsl.conf
-        regexp: '^#?\s*timeout\s*='
-        line: "timeout={{ systemd_timeout | default('30') }}"
         insertafter: '^\[boot\]'
         state: present
       when: has_boot_section

@@ -102,7 +102,7 @@ func selectInstalledDistroInteractive() (string, error) {
 func promptForPlaybooks() ([]string, error) {
 	prompt := promptui.Prompt{
 		Label:   "Enter playbook(s) (comma or space separated, aliases/files/URLs, or 'none' to skip)",
-		Default: "none",
+		Default: "",
 	}
 
 	result, err := prompt.Run()

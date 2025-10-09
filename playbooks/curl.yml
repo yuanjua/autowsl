@@ -36,9 +36,8 @@
     # Handled generically via ansible.builtin.package above for all RedHat versions
 
     - name: Install curl on SUSE-based distributions (openSUSE, SUSE Linux Enterprise)
-      ansible.builtin.command: >-
-        zypper --non-interactive install --no-confirm curl
-      args:
+      ansible.builtin.command:
+        cmd: zypper --non-interactive install --no-confirm curl
         creates: /usr/bin/curl
       when: ansible_os_family == "Suse"
 

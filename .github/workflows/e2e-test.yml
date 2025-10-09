@@ -57,7 +57,6 @@ jobs:
       - name: Verify WSL
         run: wsl --status
         shell: pwsh
-        continue-on-error: true
       
       - name: Install and provision
         shell: pwsh
@@ -89,7 +88,6 @@ jobs:
           wsl -d "${{ matrix.distro.test-name }}" -- systemctl status ssh
           wsl -d "${{ matrix.distro.test-name }}" -- grep "Port 2222" /etc/ssh/sshd_config
         shell: pwsh
-        continue-on-error: true
       
       - name: Diagnostics on failure
         if: failure()

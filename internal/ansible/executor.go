@@ -9,15 +9,16 @@ import (
 	"sync"
 )
 
-// playbookManager contains information about available package managers.
+// packageManager contains information about available package managers.
 type packageManager struct {
-	name            string
-	checkCmd        string
-	installCmd      string // %s will be replaced with the package name
-	updateCmd       string
-	preInstallSteps []string // Commands to run before installing a package
-	isAnsibleCore   bool     // True if the package manager installs ansible-core instead of ansible
-	description     string
+	name                   string
+	checkCmd               string
+	installCmd             string // %s will be replaced with the package name
+	updateCmd              string
+	preInstallSteps        []string // Commands to run before installing ANY package
+	ansiblePostInstallCmds []string // Specific commands to run AFTER installing Ansible
+	isAnsibleCore          bool     // True if the package manager installs ansible-core instead of ansible
+	description            string
 }
 
 var (
@@ -28,10 +29,14 @@ var (
 	// supportedPMs is a list of package managers the tool knows how to use.
 	supportedPMs = []packageManager{
 		{
-			name:        "apt",
-			checkCmd:    "command -v apt-get",
-			updateCmd:   "sudo apt-get update",
-			installCmd:  "sudo apt-get install -y %s",
+			name:       "apt",
+			checkCmd:   "command -v apt-get",
+			updateCmd:  "sudo apt-get update",
+			installCmd: "sudo apt-get install -y %s",
+			preInstallSteps: []string{
+				// This is required for Ansible's `apt` module to function correctly.
+				"sudo apt-get install -y python3-apt",
+			},
 			description: "Ubuntu/Debian/Kali",
 		},
 		{
@@ -50,9 +55,15 @@ var (
 			description:     "RHEL/CentOS/Oracle Linux 7",
 		},
 		{
-			name:        "zypper",
-			checkCmd:    "command -v zypper",
-			installCmd:  "sudo zypper install -y %s",
+			name:       "zypper",
+			checkCmd:   "command -v zypper",
+			installCmd: "sudo zypper --non-interactive install -y %s",
+			ansiblePostInstallCmds: []string{
+				// This is required for Ansible's `systemd` module on SUSE systems.
+				"sudo zypper --non-interactive install -y python3-dbus-python",
+				// This is required for Ansible's `zypper` module (install without sudo for user).
+				"ansible-galaxy collection install community.general --force",
+			},
 			description: "openSUSE",
 		},
 		{
@@ -118,25 +129,21 @@ func detectPackageManager(distroName string) (*packageManager, error) {
 
 // fixKaliRepositories handles the specific GPG key issue in new Kali Linux instances.
 func fixKaliRepositories(distroName string) error {
-	checkKaliCmd := exec.Command("wsl.exe", "-d", distroName, "bash", "-c", "grep -i kali /etc/os-release")
+	checkKaliCmd := exec.Command("wsl.exe", "-d", distroName, "sh", "-c", "grep -i kali /etc/os-release")
 	if checkKaliCmd.Run() != nil {
 		return nil // Not a Kali distribution, nothing to do.
 	}
 
 	fmt.Println("Detected Kali Linux, attempting to fix repositories...")
 
-	// Install the keyring, allowing it to be unauthenticated since that's the problem we're solving.
-	keyringCmd := "sudo apt-get install -y --allow-unauthenticated kali-archive-keyring"
-	if err := runWslCommand(distroName, keyringCmd); err != nil {
-		return fmt.Errorf("failed to install kali-archive-keyring: %w", err)
+	// This command chain is robust: it attempts an update (which may fail),
+	// installs the keyring to fix GPG errors, and then runs a final, required update.
+	fixCmd := "(sudo apt-get update -y || true) && sudo apt-get install -y --allow-unauthenticated kali-archive-keyring && sudo apt-get update -y"
+	if err := runWslCommand(distroName, fixCmd); err != nil {
+		return fmt.Errorf("failed to fix Kali repositories and update package lists: %w", err)
 	}
 
-	// Update repositories again with the correct keys in place.
-	if err := runWslCommand(distroName, "sudo apt-get update"); err != nil {
-		return fmt.Errorf("failed to update repositories after fixing keyring: %w", err)
-	}
-
-	fmt.Println("Kali repositories fixed successfully.")
+	fmt.Println("Kali repositories fixed and updated successfully.")
 	return nil
 }
 
@@ -147,12 +154,13 @@ func InstallPackage(distroName, packageName string) error {
 		return err
 	}
 
-	// Run pre-installation steps if any (e.g., enabling EPEL repo).
+	// Run pre-installation steps if any (e.g., installing python3-apt).
 	if len(pm.preInstallSteps) > 0 {
 		fmt.Printf("Running pre-installation steps for %s...\n", pm.name)
 		for _, step := range pm.preInstallSteps {
 			if err := runWslCommand(distroName, step); err != nil {
-				fmt.Printf("Warning: pre-install step failed, continuing anyway: %v\n", err)
+				// A failure in a pre-install step is critical.
+				return fmt.Errorf("pre-install step '%s' failed: %w", step, err)
 			}
 		}
 	}
@@ -166,32 +174,79 @@ func InstallPackage(distroName, packageName string) error {
 	// Run the installation command.
 	installCmdStr := fmt.Sprintf(pm.installCmd, installPkgName)
 	fmt.Printf("Installing '%s' with %s...\n", installPkgName, pm.name)
-	return runWslCommand(distroName, installCmdStr)
+	if err := runWslCommand(distroName, installCmdStr); err != nil {
+		return err // The main install failed, so abort.
+	}
+
+	// Run post-installation steps specifically for Ansible, if defined.
+	if packageName == "ansible" && len(pm.ansiblePostInstallCmds) > 0 {
+		fmt.Printf("Running Ansible post-installation steps for %s...\n", pm.name)
+		for _, step := range pm.ansiblePostInstallCmds {
+			if err := runWslCommand(distroName, step); err != nil {
+				// Post-install steps are critical for module functionality.
+				return fmt.Errorf("ansible post-install step ('%s') failed: %w", step, err)
+			}
+		}
+	}
+
+	return nil
 }
 
 // ensurePackage checks if a command exists and installs the corresponding package if it doesn't.
 func ensurePackage(distroName, commandName, packageName string) error {
 	// Prefer POSIX 'command -v' over external 'which'
 	checkCmd := exec.Command("wsl.exe", "-d", distroName, "sh", "-c", "command -v "+commandName)
-	if err := checkCmd.Run(); err == nil {
+	alreadyInstalled := checkCmd.Run() == nil
+
+	if alreadyInstalled {
 		fmt.Printf("Package '%s' is already installed.\n", packageName)
+
+		// Even if Ansible is installed, ensure post-install steps have run (for SUSE, etc.)
+		if packageName == "ansible" {
+			pm, err := detectPackageManager(distroName)
+			if err == nil && len(pm.ansiblePostInstallCmds) > 0 {
+				// Check if community.general collection is installed (for SUSE)
+				if pm.name == "zypper" {
+					checkCollection := exec.Command("wsl.exe", "-d", distroName, "sh", "-c",
+						"ansible-galaxy collection list | grep -q community.general")
+					if checkCollection.Run() != nil {
+						fmt.Println("Ansible collection 'community.general' not found, installing...")
+						for _, step := range pm.ansiblePostInstallCmds {
+							if err := runWslCommand(distroName, step); err != nil {
+								return fmt.Errorf("ansible post-install step ('%s') failed: %w", step, err)
+							}
+						}
+					}
+				}
+			}
+		}
 		return nil
 	}
 
-	// Handle special cases before generic installation.
-	if pm, err := detectPackageManager(distroName); err == nil && pm.name == "apt" {
-		if err := fixKaliRepositories(distroName); err != nil {
-			fmt.Printf("Warning: Failed to fix Kali repositories, installation may fail: %v\n", err)
-		}
-		// Always run an update for apt-based systems before first install.
-		fmt.Println("Running apt-get update...")
-		_ = runWslCommand(distroName, "sudo apt-get update")
+	// Handle repository preparation before trying to install.
+	pm, err := detectPackageManager(distroName)
+	if err != nil {
+		return err // Could not detect a PM, cannot proceed.
 	}
 
-	if err := InstallPackage(distroName, packageName); err != nil {
-		return fmt.Errorf("failed to install package '%s': %w", packageName, err)
+	if pm.name == "apt" {
+		// This will fix Kali repos and run 'apt-get update'.
+		if err := fixKaliRepositories(distroName); err != nil {
+			return err
+		}
+
+		// Check if it's NOT Kali so we can run a standard update for Debian/Ubuntu.
+		isKaliCmd := exec.Command("wsl.exe", "-d", distroName, "sh", "-c", "grep -i kali /etc/os-release")
+		if isKaliCmd.Run() != nil {
+			// It wasn't Kali, so no update has been run yet.
+			fmt.Println("Running apt-get update...")
+			if err := runWslCommand(distroName, pm.updateCmd); err != nil {
+				return fmt.Errorf("apt-get update failed: %w", err)
+			}
+		}
 	}
-	return nil
+
+	return InstallPackage(distroName, packageName)
 }
 
 // ExecutePlaybook runs an Ansible playbook inside a WSL distribution.

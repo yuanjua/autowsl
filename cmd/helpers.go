@@ -101,8 +101,8 @@ func selectInstalledDistroInteractive() (string, error) {
 // promptForPlaybooks prompts user to enter playbooks interactively
 func promptForPlaybooks() ([]string, error) {
 	prompt := promptui.Prompt{
-		Label:   "Enter playbook(s) (comma or space separated, aliases/files/URLs)",
-		Default: "curl",
+		Label:   "Enter playbook(s) (comma or space separated, aliases/files/URLs, or 'none' to skip)",
+		Default: "none",
 	}
 
 	result, err := prompt.Run()
@@ -111,8 +111,8 @@ func promptForPlaybooks() ([]string, error) {
 	}
 
 	result = strings.TrimSpace(result)
-	if result == "" {
-		return []string{"curl"}, nil
+	if result == "" || strings.ToLower(result) == "none" {
+		return []string{}, nil
 	}
 
 	// Split by comma or space

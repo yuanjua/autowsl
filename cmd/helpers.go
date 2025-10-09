@@ -41,15 +41,42 @@ func selectDistroInteractive() (distro.Distro, error) {
 	return distros[idx], nil
 }
 
-// selectDistroByVersion finds a distribution by its version name
+// selectDistroByVersion finds a distribution by its version name or package ID
 func selectDistroByVersion(versionName string) (distro.Distro, error) {
 	distros := distro.GetAllDistros()
 
+	// Try exact match on version name
 	for _, d := range distros {
 		if strings.EqualFold(d.Version, versionName) {
 			return d, nil
 		}
 	}
+
+	// Try match on package ID
+	for _, d := range distros {
+		if strings.EqualFold(d.PackageID, versionName) {
+			return d, nil
+		}
+	}
+
+	// If not found, show available options
+	fmt.Fprintf(os.Stderr, "\nError: distribution '%s' not found\n\n", versionName)
+	fmt.Fprintln(os.Stderr, "Available distributions:")
+	fmt.Fprintln(os.Stderr, strings.Repeat("-", 80))
+
+	currentGroup := ""
+	for _, d := range distros {
+		if d.Group != currentGroup {
+			if currentGroup != "" {
+				fmt.Fprintln(os.Stderr, "")
+			}
+			fmt.Fprintf(os.Stderr, "%s:\n", d.Group)
+			currentGroup = d.Group
+		}
+		fmt.Fprintf(os.Stderr, "  %-30s %s\n", d.Version, d.PackageID)
+	}
+	fmt.Fprintln(os.Stderr, strings.Repeat("-", 80))
+	fmt.Fprintln(os.Stderr, "\nTip: Use either the version name (e.g., 'Ubuntu 22.04 LTS') or package ID")
 
 	return distro.Distro{}, fmt.Errorf("distribution '%s' not found", versionName)
 }
@@ -101,8 +128,8 @@ func selectInstalledDistroInteractive() (string, error) {
 // promptForPlaybooks prompts user to enter playbooks interactively
 func promptForPlaybooks() ([]string, error) {
 	prompt := promptui.Prompt{
-		Label:   "Enter playbook(s) (comma or space separated, aliases/files/URLs)",
-		Default: "curl",
+		Label:   "Enter playbook(s) (comma or space separated, aliases/files/URLs, or 'none' to skip)",
+		Default: "",
 	}
 
 	result, err := prompt.Run()
@@ -111,8 +138,8 @@ func promptForPlaybooks() ([]string, error) {
 	}
 
 	result = strings.TrimSpace(result)
-	if result == "" {
-		return []string{"curl"}, nil
+	if result == "" || strings.ToLower(result) == "none" {
+		return []string{}, nil
 	}
 
 	// Split by comma or space

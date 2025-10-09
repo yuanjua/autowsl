@@ -1,0 +1,123 @@
+---
+# Alias playbook: systemd
+# Purpose: Enable and configure systemd as the init system in WSL2
+# 
+# This playbook:
+#   1. Checks if systemd is available
+#   2. Configures WSL to use systemd (WSL2 only)
+#   3. Creates/updates /etc/wsl.conf to enable systemd
+#   4. Displays instructions for restarting the distribution
+#
+# Note: This requires WSL 2 with Windows 11 or Windows 10 with KB5020030 or later
+#
+# Extra vars supported:
+#   - systemd_timeout: Boot timeout in seconds (default: 30)
+
+- name: Enable systemd in WSL2
+  hosts: localhost
+  connection: local
+  become: yes
+  
+  tasks:
+    - name: Check if systemd binary exists
+      stat:
+        path: /usr/lib/systemd/systemd
+      register: systemd_binary
+
+    - name: Check alternative systemd path
+      stat:
+        path: /lib/systemd/systemd
+      register: systemd_binary_alt
+      when: not systemd_binary.stat.exists
+
+    - name: Fail if systemd is not available
+      fail:
+        msg: "systemd is not available on this distribution. This playbook requires a systemd-enabled distribution."
+      when: not systemd_binary.stat.exists and not (systemd_binary_alt.stat.exists | default(false))
+
+    - name: Display systemd detection
+      debug:
+        msg: "systemd binary found. Proceeding with configuration."
+
+    - name: Ensure /etc directory exists
+      file:
+        path: /etc
+        state: directory
+        mode: '0755'
+
+    - name: Check if /etc/wsl.conf exists
+      stat:
+        path: /etc/wsl.conf
+      register: wsl_conf
+
+    - name: Create /etc/wsl.conf if it doesn't exist
+      file:
+        path: /etc/wsl.conf
+        state: touch
+        mode: '0644'
+      when: not wsl_conf.stat.exists
+
+    - name: Read current /etc/wsl.conf content
+      slurp:
+        src: /etc/wsl.conf
+      register: wsl_conf_content
+
+    - name: Parse existing wsl.conf
+      set_fact:
+        wsl_conf_text: "{{ wsl_conf_content.content | b64decode }}"
+
+    - name: Check if [boot] section exists
+      set_fact:
+        has_boot_section: "{{ '[boot]' in wsl_conf_text }}"
+
+    - name: Add systemd configuration to wsl.conf (new file or no boot section)
+      blockinfile:
+        path: /etc/wsl.conf
+        block: |
+          [boot]
+          systemd=true
+        marker: "# {mark} ANSIBLE MANAGED BLOCK - systemd"
+        create: yes
+      when: not has_boot_section
+
+    - name: Enable systemd in existing [boot] section
+      lineinfile:
+        path: /etc/wsl.conf
+        regexp: '^#?\s*systemd\s*='
+        line: "systemd=true"
+        insertafter: '^\[boot\]'
+        state: present
+      when: has_boot_section
+
+    - name: Display wsl.conf content
+      command: cat /etc/wsl.conf
+      register: final_wsl_conf
+      changed_when: false
+
+    - name: Show final configuration
+      debug:
+        msg: "{{ final_wsl_conf.stdout_lines }}"
+
+    - name: Display next steps
+      debug:
+        msg: |
+          
+          ========================================
+          systemd has been configured in /etc/wsl.conf
+          ========================================
+          
+          To activate systemd, you MUST restart this WSL distribution:
+          
+          From Windows PowerShell or Command Prompt:
+            1. Exit all WSL sessions for this distribution
+            2. Run: wsl --shutdown
+            3. Or run: wsl --terminate <distro-name>
+            4. Launch the distribution again: wsl -d <distro-name>
+          
+          After restart, verify systemd is running:
+            systemctl --version
+            systemctl list-units
+          
+          Note: Systemd requires WSL 2 with Windows 11 or
+                Windows 10 with update KB5020030 or later.
+          ========================================

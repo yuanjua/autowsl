@@ -28,31 +28,27 @@
       when: ansible_os_family == "Debian"
 
     - name: Install curl on RedHat-based distributions (Oracle Linux)
-      yum:
+      ansible.builtin.package:
         name: curl
         state: present
-      when: ansible_os_family == "RedHat" and ansible_distribution_major_version|int < 8
+      when: ansible_os_family == "RedHat"
 
-    - name: Install curl on Oracle Linux 8+ using dnf
-      dnf:
-        name: curl
-        state: present
-      when: ansible_os_family == "RedHat" and ansible_distribution_major_version|int >= 8
+    # Handled generically via ansible.builtin.package above for all RedHat versions
 
     - name: Install curl on SUSE-based distributions (openSUSE, SUSE Linux Enterprise)
-      zypper:
-        name: curl
-        state: present
+      ansible.builtin.command:
+        cmd: zypper --non-interactive install --no-confirm curl
+        creates: /usr/bin/curl
       when: ansible_os_family == "Suse"
 
     - name: Install curl on Arch Linux (for future support)
-      pacman:
+      ansible.builtin.package:
         name: curl
         state: present
       when: ansible_os_family == "Archlinux"
 
     - name: Install curl on Alpine Linux (for future support)
-      apk:
+      ansible.builtin.package:
         name: curl
         state: present
       when: ansible_os_family == "Alpine"

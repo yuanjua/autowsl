@@ -57,35 +57,68 @@ jobs:
       - name: Verify WSL
         run: wsl --status
         shell: pwsh
-        continue-on-error: true
       
       - name: Install and provision
         shell: pwsh
         timeout-minutes: 30
         run: |
-          .\autowsl.exe install "${{ matrix.distro.name }}" --name "${{ matrix.distro.test-name }}" --playbooks curl
-      
+          .\autowsl.exe install "${{ matrix.distro.name }}" --name "${{ matrix.distro.test-name }}"
+          .\autowsl.exe provision "${{ matrix.distro.test-name }}" --playbooks systemd
+          
+          # Restart WSL to activate systemd before provisioning SSH
+          Write-Host "Restarting WSL to activate systemd..."
+          wsl --terminate "${{ matrix.distro.test-name }}"
+          Start-Sleep -Seconds 2
+          
+          .\autowsl.exe provision "${{ matrix.distro.test-name }}" --playbooks ssh --extra-vars ssh_port=2222
+          .\autowsl.exe copy "${{ matrix.distro.test-name }}" --name "${{ matrix.distro.test-name }}-copy"
+          
       - name: Verify install
         shell: pwsh
         run: |
           $name = "${{ matrix.distro.test-name }}"
+          $copyName = "${{ matrix.distro.test-name }}-copy"
           $listOutput = ./autowsl.exe list
-          if ($listOutput -match $name) {
-            Write-Host "✓ Distro '$name' successfully verified in output."
+          if ($listOutput -match $name -and $listOutput -match $copyName) {
+            Write-Host "✓ Distro '$name' and '$copyName' successfully verified in output."
           } else {
             Write-Host "--- Full 'autowsl list' output ---"
             Write-Host $listOutput
             Write-Host "------------------------------------"
-            Write-Host "ERROR: Distro '$name' was not found in the list!"
+            Write-Host "ERROR: Distro '$name' or '$copyName' was not found in the list!"
             exit 1
           }
 
-      - name: Verify curl
-        run: wsl -d "${{ matrix.distro.test-name }}" -- curl --version
-        shell: pwsh
-      
-      - name: Test curl
-        run: wsl -d "${{ matrix.distro.test-name }}" -- curl -s https://www.google.com
+      - name: Verify SSH and Systemd
+        run: |
+          $distro = "${{ matrix.distro.test-name }}"
+          
+          Write-Host "Verifying that systemd is PID 1 in $distro..."
+          wsl -d $distro -- bash -c "ps -p 1 -o comm= | grep -q systemd"
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "ERROR: systemd is NOT running as PID 1! The WSL instance was likely not restarted."
+            Write-Host "Actual PID 1 is:"
+            wsl -d $distro -- ps -p 1 -o comm=
+            exit 1
+          }
+          Write-Host "✓ OK: systemd is confirmed as PID 1."
+
+          Write-Host "Verifying that SSH service is active and enabled via systemctl..."
+          wsl -d $distro -- bash -c "systemctl is-active --quiet ssh || systemctl is-active --quiet sshd"
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "ERROR: SSH service is not 'active' according to systemctl!"
+            wsl -d $distro -- systemctl status sshd || wsl -d $distro -- systemctl status ssh
+            exit 1
+          }
+          Write-Host "✓ OK: SSH service is active."
+
+          Write-Host "Verifying SSH port configuration..."
+          wsl -d $distro -- grep "Port 2222" /etc/ssh/sshd_config
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "ERROR: Port 2222 was not found in /etc/ssh/sshd_config!"
+            exit 1
+          }
+          Write-Host "✓ OK: SSH port is configured to 2222."
         shell: pwsh
       
       - name: Diagnostics on failure
@@ -100,3 +133,4 @@ jobs:
         shell: pwsh
         run: |
           wsl --unregister "${{ matrix.distro.test-name }}" 2>$null || $true
+          wsl --unregister "${{ matrix.distro.test-name }}-copy" 2>$null || $true

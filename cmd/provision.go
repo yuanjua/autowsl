@@ -14,7 +14,7 @@ import (
 var (
 	provisionTags      []string
 	provisionPlaybooks []string
-	provisionExtraVars []string
+	provisionExtraVars string
 	provisionRepo      string
 	provisionVerbose   bool
 )
@@ -47,7 +47,8 @@ Examples:
   autowsl provision ubuntu-2204 --playbooks ./setup.yml --tags docker,nodejs
 
   # Pass extra variables
-  autowsl provision ubuntu-2204 --playbooks ./setup.yml --extra-vars user=john --extra-vars env=dev
+  autowsl provision ubuntu-2204 --playbooks ./setup.yml --extra-vars "user=john env=dev"
+  autowsl provision ubuntu-2204 --playbooks ./setup.yml --extra-vars "user=john,env=dev"
 
   # Verbose output
   autowsl provision ubuntu-2204 --verbose`,
@@ -58,7 +59,7 @@ func init() {
 	rootCmd.AddCommand(provisionCmd)
 	provisionCmd.Flags().StringSliceVar(&provisionTags, "tags", nil, "Ansible tags to run (comma-separated)")
 	provisionCmd.Flags().StringSliceVar(&provisionPlaybooks, "playbooks", []string{}, "Playbook files, URLs, or aliases (comma-separated or repeat flag)")
-	provisionCmd.Flags().StringArrayVar(&provisionExtraVars, "extra-vars", nil, "Extra variables in key=val format (repeatable)")
+	provisionCmd.Flags().StringVar(&provisionExtraVars, "extra-vars", "", "Extra variables in key=val format (space or comma-separated)")
 	provisionCmd.Flags().StringVar(&provisionRepo, "repo", "", "Git repository URL containing playbooks")
 	provisionCmd.Flags().BoolVarP(&provisionVerbose, "verbose", "v", false, "Verbose output")
 }
@@ -127,13 +128,21 @@ func runProvision(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Process extra-vars
+	var extraVarsSlice []string
+	if provisionExtraVars != "" {
+		// Replace commas with spaces, then split by spaces
+		varsString := strings.ReplaceAll(provisionExtraVars, ",", " ")
+		extraVarsSlice = strings.Fields(varsString)
+	}
+
 	// Use shared provisioning pipeline
 	return runProvisioningPipeline(ProvisioningPipelineOptions{
 		DistroName:     distroName,
 		PlaybookInputs: playbookInputs,
 		Tags:           provisionTags,
 		Verbose:        provisionVerbose,
-		ExtraVars:      provisionExtraVars,
+		ExtraVars:      extraVarsSlice,
 		TempDir:        tempDir,
 	})
 }

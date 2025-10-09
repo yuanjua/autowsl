@@ -1,0 +1,159 @@
+---
+# Alias playbook: ssh
+# Purpose: Install and configure SSH server on WSL distributions
+# 
+# This playbook:
+#   1. Installs openssh-server
+#   2. Configures SSH to allow password authentication (optional)
+#   3. Determines the init system (systemd or sysvinit)
+#   4. Enables SSH service for auto-start
+#   5. Starts the SSH service
+#
+# Extra vars supported:
+#   - ssh_port: Custom SSH port (default: 22)
+#   - ssh_password_auth: Enable password authentication (default: yes)
+#   - ssh_permit_root_login: Allow root login (default: prohibit-password)
+
+- name: Install and configure SSH server
+  hosts: localhost
+  connection: local
+  become: yes
+  
+  tasks:
+    - name: Install openssh-server on Debian-based distributions
+      apt:
+        name: openssh-server
+        state: present
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Install openssh-server on RedHat-based distributions (older versions)
+      yum:
+        name: openssh-server
+        state: present
+      when: ansible_os_family == "RedHat" and ansible_distribution_major_version|int < 8
+
+    - name: Install openssh-server on RedHat-based distributions (8+)
+      dnf:
+        name: openssh-server
+        state: present
+      when: ansible_os_family == "RedHat" and ansible_distribution_major_version|int >= 8
+
+    - name: Install openssh-server on SUSE-based distributions
+      zypper:
+        name: openssh
+        state: present
+      when: ansible_os_family == "Suse"
+
+    - name: Ensure SSH directory exists
+      file:
+        path: /etc/ssh
+        state: directory
+        mode: '0755'
+
+    - name: Configure SSH port
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?Port '
+        line: "Port {{ ssh_port | default('22') }}"
+        state: present
+      notify: restart ssh
+
+    - name: Configure SSH password authentication
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PasswordAuthentication '
+        line: "PasswordAuthentication {{ ssh_password_auth | default('yes') }}"
+        state: present
+      notify: restart ssh
+
+    - name: Configure SSH root login
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PermitRootLogin '
+        line: "PermitRootLogin {{ ssh_permit_root_login | default('prohibit-password') }}"
+        state: present
+      notify: restart ssh
+
+    - name: Check if systemd is the init system
+      stat:
+        path: /run/systemd/system
+      register: systemd_check
+
+    - name: Display init system detected
+      debug:
+        msg: "Init system: {{ 'systemd' if systemd_check.stat.exists else 'sysvinit' }}"
+
+    # Systemd-based service management
+    - block:
+        - name: Enable SSH service with systemd
+          systemd:
+            name: ssh
+            enabled: yes
+            daemon_reload: yes
+          when: ansible_os_family == "Debian"
+          ignore_errors: yes
+
+        - name: Enable sshd service with systemd (RedHat/SUSE)
+          systemd:
+            name: sshd
+            enabled: yes
+            daemon_reload: yes
+          when: ansible_os_family in ["RedHat", "Suse"]
+          ignore_errors: yes
+
+        - name: Start SSH service with systemd
+          systemd:
+            name: ssh
+            state: started
+          when: ansible_os_family == "Debian"
+          ignore_errors: yes
+
+        - name: Start sshd service with systemd (RedHat/SUSE)
+          systemd:
+            name: sshd
+            state: started
+          when: ansible_os_family in ["RedHat", "Suse"]
+          ignore_errors: yes
+
+      when: systemd_check.stat.exists
+
+    # SysVinit-based service management
+    - block:
+        - name: Enable SSH service with update-rc.d (Debian sysvinit)
+          command: update-rc.d ssh defaults
+          when: ansible_os_family == "Debian"
+          ignore_errors: yes
+
+        - name: Enable SSH service with chkconfig (RedHat sysvinit)
+          command: chkconfig sshd on
+          when: ansible_os_family == "RedHat"
+          ignore_errors: yes
+
+        - name: Start SSH service with service command
+          service:
+            name: "{{ 'ssh' if ansible_os_family == 'Debian' else 'sshd' }}"
+            state: started
+          ignore_errors: yes
+
+      when: not systemd_check.stat.exists
+
+    - name: Display SSH service status
+      debug:
+        msg: |
+          SSH server has been installed and configured.
+          Port: {{ ssh_port | default('22') }}
+          Password Authentication: {{ ssh_password_auth | default('yes') }}
+          Root Login: {{ ssh_permit_root_login | default('prohibit-password') }}
+          Init System: {{ 'systemd' if systemd_check.stat.exists else 'sysvinit' }}
+          
+          Note: In WSL, you may need to manually start the SSH service after launch:
+          - With systemd: sudo systemctl start ssh (or sshd)
+          - With sysvinit: sudo service ssh start (or sshd)
+
+  handlers:
+    - name: restart ssh
+      service:
+        name: "{{ 'ssh' if ansible_os_family == 'Debian' else 'sshd' }}"
+        state: restarted
+      ignore_errors: yes

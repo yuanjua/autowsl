@@ -164,10 +164,21 @@
           when: ansible_os_family == "RedHat"
           ignore_errors: yes
 
-        - name: Start SSH service with service command
+        - name: Generate SSH host keys if missing (SUSE sysvinit)
+          command: ssh-keygen -A
+          when: ansible_os_family == "Suse"
+          ignore_errors: yes
+
+        - name: Start SSH daemon directly in background (SUSE sysvinit)
+          command: /usr/sbin/sshd
+          when: ansible_os_family == "Suse"
+          ignore_errors: yes
+
+        - name: Start SSH service with service command (non-SUSE)
           service:
             name: "{{ 'ssh' if ansible_os_family == 'Debian' else 'sshd' }}"
             state: started
+          when: ansible_os_family != "Suse"
           ignore_errors: yes
 
       when: not systemd_check.stat.exists
@@ -186,8 +197,43 @@
           - With sysvinit: sudo service ssh start (or sshd)
 
   handlers:
-    - name: restart ssh
-      service:
-        name: "{{ 'ssh' if ansible_os_family == 'Debian' else 'sshd' }}"
+    - name: restart ssh systemd debian
+      systemd:
+        name: ssh
         state: restarted
+      when: 
+        - systemd_check.stat.exists
+        - ansible_os_family == "Debian"
+      listen: restart ssh
+      ignore_errors: yes
+
+    - name: restart ssh systemd redhat/suse
+      systemd:
+        name: sshd
+        state: restarted
+      when:
+        - systemd_check.stat.exists
+        - ansible_os_family in ["RedHat", "Suse"]
+      listen: restart ssh
+      ignore_errors: yes
+
+    - name: restart ssh fallback - kill old sshd
+      command: pkill -f /usr/sbin/sshd
+      when: not systemd_check.stat.exists
+      failed_when: false
+      listen: restart ssh
+      ignore_errors: yes
+
+    - name: restart ssh fallback - wait
+      pause:
+        seconds: 1
+      when: not systemd_check.stat.exists
+      listen: restart ssh
+
+    - name: restart ssh fallback - start new sshd
+      command: /usr/sbin/sshd
+      when: not systemd_check.stat.exists
+      async: 10
+      poll: 0
+      listen: restart ssh
       ignore_errors: yes

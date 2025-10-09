@@ -85,6 +85,25 @@ func runProvision(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to check distribution: %w", err)
 	}
 	if !exists {
+		// List available distros to help the user
+		distros, listErr := wsl.ListInstalledDistros()
+		if listErr == nil && len(distros) > 0 {
+			fmt.Fprintf(os.Stderr, "\nError: distribution '%s' does not exist\n\n", distroName)
+			fmt.Fprintln(os.Stderr, "Available installed distributions:")
+			fmt.Fprintln(os.Stderr, strings.Repeat("-", 60))
+			for _, d := range distros {
+				marker := " "
+				if d.Default {
+					marker = "*"
+				}
+				status := d.State
+				fmt.Fprintf(os.Stderr, "%s %-30s (%s)\n", marker, d.Name, status)
+			}
+			fmt.Fprintln(os.Stderr, strings.Repeat("-", 60))
+			fmt.Fprintln(os.Stderr, "\nTip: Use 'autowsl list' to see all installed distributions")
+			fmt.Fprintln(os.Stderr, "     Use 'autowsl install' to install a new distribution")
+			return fmt.Errorf("distribution not found")
+		}
 		return fmt.Errorf("distribution '%s' does not exist", distroName)
 	}
 

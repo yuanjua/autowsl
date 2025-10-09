@@ -27,22 +27,17 @@
         update_cache: yes
       when: ansible_os_family == "Debian"
 
-    - name: Install openssh-server on RedHat-based distributions (older versions)
-      yum:
+    - name: Install openssh-server on RedHat-based distributions (any version)
+      ansible.builtin.package:
         name: openssh-server
         state: present
-      when: ansible_os_family == "RedHat" and ansible_distribution_major_version|int < 8
-
-    - name: Install openssh-server on RedHat-based distributions (8+)
-      dnf:
-        name: openssh-server
-        state: present
-      when: ansible_os_family == "RedHat" and ansible_distribution_major_version|int >= 8
+      when: ansible_os_family == "RedHat"
 
     - name: Install openssh-server on SUSE-based distributions
-      zypper:
-        name: openssh
-        state: present
+      ansible.builtin.command: >-
+        zypper --non-interactive install --no-confirm openssh
+      args:
+        creates: /usr/sbin/sshd
       when: ansible_os_family == "Suse"
 
     - name: Ensure SSH directory exists

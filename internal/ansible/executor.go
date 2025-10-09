@@ -11,13 +11,13 @@ import (
 
 // playbookManager contains information about available package managers.
 type packageManager struct {
-	name             string
-	checkCmd         string
-	installCmd       string // %s will be replaced with the package name
-	updateCmd        string
-	preInstallSteps  []string // Commands to run before installing a package
-	isAnsibleCore    bool     // True if the package manager installs ansible-core instead of ansible
-	description      string
+	name            string
+	checkCmd        string
+	installCmd      string // %s will be replaced with the package name
+	updateCmd       string
+	preInstallSteps []string // Commands to run before installing a package
+	isAnsibleCore   bool     // True if the package manager installs ansible-core instead of ansible
+	description     string
 }
 
 var (
@@ -29,14 +29,14 @@ var (
 	supportedPMs = []packageManager{
 		{
 			name:        "apt",
-			checkCmd:    "which apt-get",
+			checkCmd:    "command -v apt-get",
 			updateCmd:   "sudo apt-get update",
 			installCmd:  "sudo apt-get install -y %s",
 			description: "Ubuntu/Debian/Kali",
 		},
 		{
 			name:            "dnf",
-			checkCmd:        "which dnf",
+			checkCmd:        "command -v dnf",
 			installCmd:      "sudo dnf install -y %s",
 			preInstallSteps: []string{"sudo dnf install -y oracle-epel-release-el9 || true"}, // For Oracle/RHEL to get ansible
 			isAnsibleCore:   true,
@@ -44,26 +44,26 @@ var (
 		},
 		{
 			name:            "yum",
-			checkCmd:        "which yum",
+			checkCmd:        "command -v yum",
 			installCmd:      "sudo yum install -y %s",
 			preInstallSteps: []string{"sudo yum install -y epel-release || true"},
 			description:     "RHEL/CentOS/Oracle Linux 7",
 		},
 		{
 			name:        "zypper",
-			checkCmd:    "which zypper",
+			checkCmd:    "command -v zypper",
 			installCmd:  "sudo zypper install -y %s",
 			description: "openSUSE",
 		},
 		{
 			name:        "pacman",
-			checkCmd:    "which pacman",
+			checkCmd:    "command -v pacman",
 			installCmd:  "sudo pacman -S --noconfirm %s",
 			description: "Arch Linux",
 		},
 		{
 			name:        "apk",
-			checkCmd:    "which apk",
+			checkCmd:    "command -v apk",
 			installCmd:  "sudo apk add %s",
 			description: "Alpine Linux",
 		},
@@ -81,7 +81,8 @@ type PlaybookOptions struct {
 
 // runWslCommand executes a command within a specified WSL distribution and streams its output.
 func runWslCommand(distroName, command string) error {
-	cmd := exec.Command("wsl.exe", "-d", distroName, "bash", "-c", command)
+	// Use POSIX sh to avoid reliance on bash (e.g., Alpine images)
+	cmd := exec.Command("wsl.exe", "-d", distroName, "sh", "-c", command)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
@@ -103,7 +104,8 @@ func detectPackageManager(distroName string) (*packageManager, error) {
 
 	for i := range supportedPMs {
 		pm := &supportedPMs[i]
-		checkPMCmd := exec.Command("wsl.exe", "-d", distroName, "bash", "-c", pm.checkCmd)
+		// Use sh for robust availability across distros
+		checkPMCmd := exec.Command("wsl.exe", "-d", distroName, "sh", "-c", pm.checkCmd)
 		if checkPMCmd.Run() == nil {
 			fmt.Printf("Detected package manager: %s (%s)\n", pm.name, pm.description)
 			memoizedPMs[distroName] = pm
@@ -169,7 +171,8 @@ func InstallPackage(distroName, packageName string) error {
 
 // ensurePackage checks if a command exists and installs the corresponding package if it doesn't.
 func ensurePackage(distroName, commandName, packageName string) error {
-	checkCmd := exec.Command("wsl.exe", "-d", distroName, "bash", "-c", "which "+commandName)
+	// Prefer POSIX 'command -v' over external 'which'
+	checkCmd := exec.Command("wsl.exe", "-d", distroName, "sh", "-c", "command -v "+commandName)
 	if err := checkCmd.Run(); err == nil {
 		fmt.Printf("Package '%s' is already installed.\n", packageName)
 		return nil
@@ -235,7 +238,7 @@ func copyPlaybookToWSL(distroName, windowsPlaybookPath string) (string, error) {
 	}
 
 	writeCmdStr := fmt.Sprintf("cat > '%s' && chmod 644 '%s'", wslPlaybookPath, wslPlaybookPath)
-	writeCmd := exec.Command("wsl.exe", "-d", distroName, "bash", "-c", writeCmdStr)
+	writeCmd := exec.Command("wsl.exe", "-d", distroName, "sh", "-c", writeCmdStr)
 	writeCmd.Stdin = strings.NewReader(string(content))
 
 	if output, err := writeCmd.CombinedOutput(); err != nil {

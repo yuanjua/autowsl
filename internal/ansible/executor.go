@@ -80,25 +80,34 @@ func ensureAnsible(distroName string) error {
 
 	fmt.Println("Ansible not found, installing...")
 
-	// Try multiple installation methods
-	installCommands := []string{
-		// Try apt first (Ubuntu/Debian) - fix sources if needed and install
-		"sudo sed -i '/bullseye-backports/d' /etc/apt/sources.list 2>/dev/null; sudo apt-get update && sudo apt-get install -y ansible",
-		// Try dnf (Fedora)
-		"sudo dnf install -y ansible",
-		// Try yum (RHEL/CentOS/Oracle)
-		"sudo yum install -y ansible",
-		// Try zypper (openSUSE)
-		"sudo zypper install -y ansible",
-		// Try pacman (Arch)
-		"sudo pacman -S --noconfirm ansible",
-		// Try apk (Alpine)
-		"sudo apk add ansible",
+	// Detect which package manager is available
+	packageManagers := []struct {
+		name        string
+		checkCmd    string
+		installCmd  string
+		description string
+	}{
+		{"apt", "which apt-get", "sudo sed -i '/bullseye-backports/d' /etc/apt/sources.list 2>/dev/null; sudo apt-get update && sudo apt-get install -y ansible", "Ubuntu/Debian"},
+		{"dnf", "which dnf", "sudo dnf install -y epel-release && sudo dnf install -y ansible", "Fedora/Oracle Linux/RHEL 8+"},
+		{"yum", "which yum", "sudo yum install -y epel-release && sudo yum install -y ansible", "RHEL/CentOS/Oracle Linux"},
+		{"zypper", "which zypper", "sudo zypper install -y ansible", "openSUSE"},
+		{"pacman", "which pacman", "sudo pacman -S --noconfirm ansible", "Arch Linux"},
+		{"apk", "which apk", "sudo apk add ansible", "Alpine Linux"},
 	}
 
 	var lastErr error
-	for _, cmdStr := range installCommands {
-		installCmd := exec.Command("wsl.exe", "-d", distroName, "bash", "-c", cmdStr)
+	for _, pm := range packageManagers {
+		// Check if this package manager exists
+		checkPMCmd := exec.Command("wsl.exe", "-d", distroName, "bash", "-c", pm.checkCmd)
+		if checkPMCmd.Run() != nil {
+			// Package manager not found, skip
+			continue
+		}
+
+		fmt.Printf("Detected package manager: %s (%s)\n", pm.name, pm.description)
+
+		// Try to install Ansible with this package manager
+		installCmd := exec.Command("wsl.exe", "-d", distroName, "bash", "-c", pm.installCmd)
 		installCmd.Stdout = os.Stdout
 		installCmd.Stderr = os.Stderr
 
@@ -114,7 +123,7 @@ func ensureAnsible(distroName string) error {
 		}
 	}
 
-	return fmt.Errorf("failed to install Ansible automatically (tried all package managers): %w\nPlease install manually: wsl -d %s bash -c 'sudo apt install ansible'", lastErr, distroName)
+	return fmt.Errorf("failed to install Ansible automatically (tried all available package managers): %w\nPlease install manually: wsl -d %s bash -c 'sudo dnf install ansible' or 'sudo yum install ansible'", lastErr, distroName)
 }
 
 // copyPlaybookToWSL copies a playbook from Windows to WSL filesystem
@@ -184,19 +193,33 @@ func CloneGitRepo(distroName, repoURL, destDir string) error {
 	if err := checkCmd.Run(); err != nil {
 		fmt.Println("Git not found, installing...")
 
-		// Try multiple package managers
-		installCommands := []string{
-			"sudo apt-get update -qq && sudo apt-get install -y -qq git",
-			"sudo dnf install -y git",
-			"sudo yum install -y git",
-			"sudo zypper install -y git",
-			"sudo pacman -S --noconfirm git",
-			"sudo apk add git",
+		// Detect which package manager is available
+		packageManagers := []struct {
+			name       string
+			checkCmd   string
+			installCmd string
+		}{
+			{"apt", "which apt-get", "sudo apt-get update -qq && sudo apt-get install -y -qq git"},
+			{"dnf", "which dnf", "sudo dnf install -y git"},
+			{"yum", "which yum", "sudo yum install -y git"},
+			{"zypper", "which zypper", "sudo zypper install -y git"},
+			{"pacman", "which pacman", "sudo pacman -S --noconfirm git"},
+			{"apk", "which apk", "sudo apk add git"},
 		}
 
 		var installed bool
-		for _, cmdStr := range installCommands {
-			installCmd := exec.Command("wsl.exe", "-d", distroName, "bash", "-c", cmdStr)
+		for _, pm := range packageManagers {
+			// Check if this package manager exists
+			checkPMCmd := exec.Command("wsl.exe", "-d", distroName, "bash", "-c", pm.checkCmd)
+			if checkPMCmd.Run() != nil {
+				// Package manager not found, skip
+				continue
+			}
+
+			fmt.Printf("Detected package manager: %s\n", pm.name)
+
+			// Try to install git with this package manager
+			installCmd := exec.Command("wsl.exe", "-d", distroName, "bash", "-c", pm.installCmd)
 			installCmd.Stdout = os.Stdout
 			installCmd.Stderr = os.Stderr
 
@@ -211,7 +234,7 @@ func CloneGitRepo(distroName, repoURL, destDir string) error {
 		}
 
 		if !installed {
-			return fmt.Errorf("failed to install git in distribution '%s' (tried all package managers)", distroName)
+			return fmt.Errorf("failed to install git in distribution '%s' (tried all available package managers)", distroName)
 		}
 	}
 

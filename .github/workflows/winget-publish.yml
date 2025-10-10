@@ -1,5 +1,14 @@
 name: Publish to WinGet
 
+# This workflow automatically publishes releases to the Windows Package Manager (WinGet).
+# It is triggered when a new release is published or can be manually dispatched.
+# 
+# Required secrets:
+#   WINGET_TOKEN: GitHub PAT with public_repo scope for creating PRs to microsoft/winget-pkgs
+#   WINGET_FORK_USER: (Optional) GitHub username to fork winget-pkgs under
+#
+# See WINGET_SETUP.md for detailed setup instructions.
+
 on:
   release:
     types: [released]
@@ -19,6 +28,7 @@ jobs:
         uses: vedantmgoyal9/winget-releaser@v2
         with:
           identifier: yuanjua.autowsl
+          # Match both amd64 and arm64 Windows executables
           installers-regex: '^autowsl-windows-.*\.exe$'
           version: ${{ github.event.release.tag_name || inputs.version }}
           release-tag: ${{ github.event.release.tag_name || inputs.version }}

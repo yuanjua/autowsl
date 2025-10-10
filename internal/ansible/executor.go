@@ -136,11 +136,34 @@ func fixKaliRepositories(distroName string) error {
 
 	fmt.Println("Detected Kali Linux, attempting to fix repositories...")
 
-	// This command chain is robust: it attempts an update (which may fail),
-	// installs the keyring to fix GPG errors, and then runs a final, required update.
-	fixCmd := "(sudo apt-get update -y || true) && sudo apt-get install -y --allow-unauthenticated kali-archive-keyring && sudo apt-get update -y"
-	if err := runWslCommand(distroName, fixCmd); err != nil {
-		return fmt.Errorf("failed to fix Kali repositories and update package lists: %w", err)
+	// Step 1: Backup the original sources.list and create a new one with proper signed-by configuration
+	backupCmd := "sudo cp /etc/apt/sources.list /etc/apt/sources.list.bak 2>/dev/null || true"
+	if err := runWslCommand(distroName, backupCmd); err != nil {
+		fmt.Printf("Warning: failed to backup sources.list: %v\n", err)
+	}
+
+	// Step 2: Comment out the old repositories and add the new signed repository
+	updateSourcesCmd := `sudo sh -c 'sed -i "s/^deb/#deb/g" /etc/apt/sources.list && echo "deb [signed-by=/usr/share/keyrings/kali-archive-keyring.gpg] https://kali.download/kali kali-rolling main contrib non-free non-free-firmware" >> /etc/apt/sources.list'`
+	if err := runWslCommand(distroName, updateSourcesCmd); err != nil {
+		return fmt.Errorf("failed to update sources.list: %w", err)
+	}
+
+	// Step 3: Download the Kali archive keyring
+	downloadKeyCmd := "wget -q https://archive.kali.org/archive-keyring.gpg -O /tmp/kali-archive-keyring.gpg && sudo mv /tmp/kali-archive-keyring.gpg /usr/share/keyrings/kali-archive-keyring.gpg"
+	if err := runWslCommand(distroName, downloadKeyCmd); err != nil {
+		return fmt.Errorf("failed to download Kali archive keyring: %w", err)
+	}
+
+	// Step 4: Update package lists with the new configuration
+	updateCmd := "sudo apt-get update"
+	if err := runWslCommand(distroName, updateCmd); err != nil {
+		return fmt.Errorf("failed to update package lists: %w", err)
+	}
+
+	// Step 5: Install gnupg which is required for repository management
+	installGnupgCmd := "sudo apt-get install -y gnupg"
+	if err := runWslCommand(distroName, installGnupgCmd); err != nil {
+		return fmt.Errorf("failed to install gnupg: %w", err)
 	}
 
 	fmt.Println("Kali repositories fixed and updated successfully.")

@@ -1,0 +1,26 @@
+name: Publish to WinGet
+
+on:
+  release:
+    types: [released]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag to publish (e.g., v1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  winget-publish:
+    name: Publish to WinGet
+    runs-on: windows-latest
+    steps:
+      - name: Publish to WinGet
+        uses: vedantmgoyal9/winget-releaser@v2
+        with:
+          identifier: yuanjua.autowsl
+          installers-regex: '^autowsl-windows-.*\.exe$'
+          version: ${{ github.event.release.tag_name || inputs.version }}
+          release-tag: ${{ github.event.release.tag_name || inputs.version }}
+          token: ${{ secrets.WINGET_TOKEN }}
+          fork-user: ${{ secrets.WINGET_FORK_USER }}

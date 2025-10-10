@@ -11,6 +11,16 @@ Make sure WSL is already installed.
 wsl --install --no-distribution
 ```
 
+### Option 1: Install via WinGet (Recommended)
+
+Once published to WinGet, you can install AutoWSL with:
+
+```bash
+winget install yuanjua.autowsl
+```
+
+### Option 2: Build from Source
+
 To get started, you'll need Go (version 1.21+) installed.
 
 **Clone the repository:**

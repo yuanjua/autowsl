@@ -11,6 +11,12 @@ Make sure WSL is already installed.
 wsl --install --no-distribution
 ```
 
+### Pre-built Binary
+
+Download the binary from [Release](https://github.com/yuanjua/autowsl/releases)
+
+### From Source
+
 To get started, you'll need Go (version 1.21+) installed.
 
 **Clone the repository:**

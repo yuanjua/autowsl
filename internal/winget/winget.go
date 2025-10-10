@@ -8,19 +8,19 @@ import (
 	"strings"
 )
 
-// WingetDownloader handles downloading WSL distributions using winget
+// WingetDownloader handles downloading WSL distributions using wingetcreate
 type WingetDownloader struct {
 	DownloadDir string
 }
 
-// NewWingetDownloader creates a new winget downloader
+// NewWingetDownloader creates a new wingetcreate downloader
 func NewWingetDownloader(downloadDir string) *WingetDownloader {
 	return &WingetDownloader{
 		DownloadDir: downloadDir,
 	}
 }
 
-// Download downloads a package using winget
+// Download downloads a package using wingetcreate
 // packageID is the winget package identifier (e.g., "Canonical.Ubuntu.2204")
 // Returns the path to the downloaded file
 func (w *WingetDownloader) Download(packageID string) (string, error) {
@@ -29,22 +29,22 @@ func (w *WingetDownloader) Download(packageID string) (string, error) {
 		return "", fmt.Errorf("failed to create download directory: %w", err)
 	}
 
-	// Check if winget is available
+	// Check if wingetcreate is available
 	if !w.IsWingetAvailable() {
-		return "", fmt.Errorf("winget is not available. Please install App Installer from Microsoft Store")
+		return "", fmt.Errorf("wingetcreate is not available. Please install winget-create from https://github.com/microsoft/winget-create")
 	}
 
 	fmt.Printf("Downloading package: %s\n", packageID)
 	fmt.Printf("Download directory: %s\n\n", w.DownloadDir)
 
-	// Run winget download command
-	// winget download --id <PackageId> --download-directory <PathToTempDir>
-	cmd := exec.Command("winget", "download", "--id", packageID, "--download-directory", w.DownloadDir, "--accept-package-agreements", "--accept-source-agreements")
+	// Run wingetcreate download command
+	// wingetcreate download <PackageId> --download-directory <PathToTempDir>
+	cmd := exec.Command("wingetcreate", "download", packageID, "--download-directory", w.DownloadDir)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("winget download failed: %w", err)
+		return "", fmt.Errorf("wingetcreate download failed: %w", err)
 	}
 
 	// Find the downloaded file (should be in the download directory)
@@ -96,19 +96,19 @@ func (w *WingetDownloader) findDownloadedFile(packageID string) (string, error) 
 	return candidates[0], nil
 }
 
-// IsWingetAvailable checks if winget is installed and available
+// IsWingetAvailable checks if wingetcreate is installed and available
 func (w *WingetDownloader) IsWingetAvailable() bool {
-	cmd := exec.Command("winget", "--version")
+	cmd := exec.Command("wingetcreate", "--version")
 	err := cmd.Run()
 	return err == nil
 }
 
-// GetWingetVersion returns the installed winget version
+// GetWingetVersion returns the installed wingetcreate version
 func (w *WingetDownloader) GetWingetVersion() (string, error) {
-	cmd := exec.Command("winget", "--version")
+	cmd := exec.Command("wingetcreate", "--version")
 	output, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("failed to get winget version: %w", err)
+		return "", fmt.Errorf("failed to get wingetcreate version: %w", err)
 	}
 	return strings.TrimSpace(string(output)), nil
 }

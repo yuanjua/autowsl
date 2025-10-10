@@ -87,9 +87,9 @@ func ExampleManager() {
 	// Create download manager
 	mgr := winget.NewManager("./.autowsl_tmp")
 
-	// Check if winget is available
+	// Check if wingetcreate is available
 	if !mgr.IsWingetAvailable() {
-		fmt.Println("Winget is not available")
+		fmt.Println("Wingetcreate is not available")
 		return
 	}
 

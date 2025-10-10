@@ -4,7 +4,7 @@ import (
 	"fmt"
 )
 
-// Manager handles WSL distribution downloads using winget
+// Manager handles WSL distribution downloads using wingetcreate
 type Manager struct {
 	downloader *WingetDownloader
 	tempDir    string
@@ -71,7 +71,7 @@ func (m *Manager) Download(opts DownloadOptions) (string, error) {
 		return "", fmt.Errorf("either Version or PackageID must be specified")
 	}
 
-	// Download using winget
+	// Download using wingetcreate
 	downloadedFile, err := m.downloader.Download(packageID)
 	if err != nil {
 		return "", err
@@ -85,12 +85,12 @@ func (m *Manager) GetCatalog() []WingetDistro {
 	return GetWingetDistros()
 }
 
-// IsWingetAvailable checks if winget is available
+// IsWingetAvailable checks if wingetcreate is available
 func (m *Manager) IsWingetAvailable() bool {
 	return m.downloader.IsWingetAvailable()
 }
 
-// GetWingetVersion returns the winget version
+// GetWingetVersion returns the wingetcreate version
 func (m *Manager) GetWingetVersion() (string, error) {
 	return m.downloader.GetWingetVersion()
 }

@@ -166,10 +166,10 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	fmt.Println("→ Downloading distribution...")
 	mgr := winget.NewManager(tempDir)
 
-	// Check if winget is available
+	// Check if wingetcreate is available
 	if !mgr.IsWingetAvailable() {
 		_ = extractor.CleanupTempDir(tempDir)
-		return fmt.Errorf("winget is not available. Please install 'App Installer' from Microsoft Store")
+		return fmt.Errorf("wingetcreate is not available. Please install winget-create from https://github.com/microsoft/winget-create")
 	}
 
 	downloadedFile, err := mgr.Download(winget.DownloadOptions{

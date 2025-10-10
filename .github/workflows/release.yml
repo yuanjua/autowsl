@@ -29,7 +29,9 @@ jobs:
       - name: Get version
         id: version
         run: |
-          if ("${{ github.ref_name }}") {
+          if ("${{ github.event.inputs.version }}") {
+            echo "VERSION=${{ github.event.inputs.version }}" >> $env:GITHUB_OUTPUT
+          } elseif ("${{ github.ref_name }}") {
             echo "VERSION=${{ github.ref_name }}" >> $env:GITHUB_OUTPUT
           }
         shell: pwsh
@@ -60,8 +62,9 @@ jobs:
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
-          draft: ${{ contains(github.ref_name, '-') }}
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          draft: ${{ contains(steps.version.outputs.VERSION, '-') }}
+          prerelease: ${{ contains(steps.version.outputs.VERSION, '-') }}
           files: |
             autowsl-windows-amd64.exe
             autowsl-windows-arm64.exe

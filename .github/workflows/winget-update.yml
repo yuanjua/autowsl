@@ -1,8 +1,7 @@
-name: Publish to Winget (update)
+# .github/workflows/winget-new.yml
+name: Publish to Winget (initial/new)
 
 on:
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       version:
@@ -12,28 +11,25 @@ on:
 
 env:
   PACKAGE_ID: 'yuanjua.autowsl'
+  PACKAGE_NAME: 'AutoWSL'
+  PUBLISHER: 'yuanjua'
+  SHORT_DESCRIPTION: 'Automatically install and configure WSL tools.'
 
 jobs:
-  winget-update:
-    name: Update winget manifests (update)
+  winget-new:
+    name: Create initial winget manifests (new)
     runs-on: windows-latest
     steps:
       - name: Get version
         id: get-version
         shell: pwsh
         run: |
-          if ("${{ github.event_name }}" -eq "release") {
-            $version = "${{ github.event.release.tag_name }}" -replace '^v', ''
-            echo "VERSION=$version" >> $env:GITHUB_OUTPUT
-            echo "TAG_NAME=${{ github.event.release.tag_name }}" >> $env:GITHUB_OUTPUT
-          } else {
-            $version = "${{ inputs.version }}"
-            echo "VERSION=$version" >> $env:GITHUB_OUTPUT
-            echo "TAG_NAME=v$version" >> $env:GITHUB_OUTPUT
-          }
-          Write-Host "Preparing update for version: $version"
+          $version = "${{ inputs.version }}"
+          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+          echo "TAG_NAME=v$version" >> $env:GITHUB_OUTPUT
+          Write-Host "Preparing initial submission for version: $version"
 
-      - name: Download release assets (with retries)
+      - name: Download release assets
         shell: pwsh
         run: |
           $tag = "${{ steps.get-version.outputs.TAG_NAME }}"
@@ -42,38 +38,43 @@ jobs:
           $amd64Name = "autowsl-windows-amd64.exe"
           $arm64Name = "autowsl-windows-arm64.exe"
 
-          function Download($url, $out) {
+          $urls = @{
+            $amd64Name = "$baseUrl/$amd64Name"
+            $arm64Name = "$baseUrl/$arm64Name"
+          }
+
+          foreach ($name in $urls.Keys) {
+            $url = $urls[$name]
+            Write-Host "Downloading $name from $url"
             try {
-              Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing -ErrorAction Stop
-              return $true
+              Invoke-WebRequest -Uri $url -OutFile $name -UseBasicParsing -ErrorAction Stop
             } catch {
-              Write-Warning "Failed to download $out from $url: $($_.Exception.Message)"
-              return $false
+              Write-Error "Failed to download $name. Ensure a release exists with tag $tag and the asset is uploaded & public."
+              exit 1
             }
+            $hash = (Get-FileHash $name -Algorithm SHA256).Hash
+            Write-Host "$name SHA256: $hash"
           }
 
-          $amd64Url = "$baseUrl/$amd64Name"
-          $arm64Url = "$baseUrl/$arm64Name"
-
-          if (-not (Download $amd64Url $amd64Name)) { exit 1 }
-          if (-not (Download $arm64Url $arm64Name)) { exit 1 }
-
-          foreach ($f in $amd64Name, $arm64Name) {
-            $hash = (Get-FileHash $f -Algorithm SHA256).Hash
-            Write-Host "$f SHA256: $hash"
-          }
-
-      - name: Install wingetcreate
+      - name: Install wingetcreate (tolerant of version-check failures)
         shell: pwsh
         run: |
           Invoke-WebRequest -Uri "https://aka.ms/wingetcreate/latest" -OutFile wingetcreate.exe -UseBasicParsing
-          .\wingetcreate.exe --version
+          .\wingetcreate.exe --version 2>&1 | Tee-Object -FilePath wingetcreate-version.log
+          if ($LASTEXITCODE -ne 0) {
+            Write-Warning "wingetcreate --version returned exit code $LASTEXITCODE; continuing anyway. See wingetcreate-version.log for details."
+          } else {
+            Write-Host "wingetcreate --version OK"
+          }
 
-      - name: Run wingetcreate update
+      - name: Run wingetcreate new (initial submission)
         shell: pwsh
         env:
           WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
           PACKAGE_ID: ${{ env.PACKAGE_ID }}
+          PACKAGE_NAME: ${{ env.PACKAGE_NAME }}
+          PUBLISHER: ${{ env.PUBLISHER }}
+          SHORT_DESCRIPTION: ${{ env.SHORT_DESCRIPTION }}
         run: |
           if (-not $env:WINGET_TOKEN) {
             Write-Error "WINGET_TOKEN secret is not set. Add a PAT as repository secret WINGET_TOKEN with rights to open PRs in winget-pkgs."
@@ -87,16 +88,21 @@ jobs:
           $amd64Url = "https://github.com/${{ github.repository }}/releases/download/$tag/autowsl-windows-amd64.exe"
           $arm64Url = "https://github.com/${{ github.repository }}/releases/download/$tag/autowsl-windows-arm64.exe"
 
-          Write-Host "Attempting wingetcreate update for $packageId version $version"
-          & .\wingetcreate.exe update $packageId `
+          Write-Host "Running wingetcreate new for $packageId version $version"
+          & .\wingetcreate.exe new `
+            --id $packageId `
+            --name $env:PACKAGE_NAME `
+            --publisher $env:PUBLISHER `
+            --description $env:SHORT_DESCRIPTION `
             --urls $amd64Url $arm64Url `
             --version $version `
-            --submit `
-            --token $env:WINGET_TOKEN
-
+            --token $env:WINGET_TOKEN `
+            --silent 2>&1 | Tee-Object -FilePath wingetcreate-new.log
           $exit = $LASTEXITCODE
+          $out = Get-Content wingetcreate-new.log -Raw
+          Write-Host "wingetcreate new output:`n$out"
           if ($exit -ne 0) {
-            Write-Error "wingetcreate update failed with exit code $exit"
+            Write-Error "wingetcreate new failed with exit code $exit; see wingetcreate-new.log"
             exit $exit
           }
-          Write-Host "✓ wingetcreate update succeeded (PR created/updated)."
+          Write-Host "✓ wingetcreate new succeeded. Review the PR in winget-pkgs."

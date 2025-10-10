@@ -1,3 +1,4 @@
+# .github/workflows/winget-new.yml
 name: Publish to Winget (initial/new)
 
 on:
@@ -55,11 +56,16 @@ jobs:
             Write-Host "$name SHA256: $hash"
           }
 
-      - name: Install wingetcreate
+      - name: Install wingetcreate (tolerant of version-check failures)
         shell: pwsh
         run: |
           Invoke-WebRequest -Uri "https://aka.ms/wingetcreate/latest" -OutFile wingetcreate.exe -UseBasicParsing
-          .\wingetcreate.exe --version
+          .\wingetcreate.exe --version 2>&1 | Tee-Object -FilePath wingetcreate-version.log
+          if ($LASTEXITCODE -ne 0) {
+            Write-Warning "wingetcreate --version returned exit code $LASTEXITCODE; continuing anyway. See wingetcreate-version.log for details."
+          } else {
+            Write-Host "wingetcreate --version OK"
+          }
 
       - name: Run wingetcreate new (initial submission)
         shell: pwsh
@@ -91,11 +97,12 @@ jobs:
             --urls $amd64Url $arm64Url `
             --version $version `
             --token $env:WINGET_TOKEN `
-            --silent
-
+            --silent 2>&1 | Tee-Object -FilePath wingetcreate-new.log
           $exit = $LASTEXITCODE
+          $out = Get-Content wingetcreate-new.log -Raw
+          Write-Host "wingetcreate new output:`n$out"
           if ($exit -ne 0) {
-            Write-Error "wingetcreate new failed with exit code $exit"
+            Write-Error "wingetcreate new failed with exit code $exit; see wingetcreate-new.log"
             exit $exit
           }
           Write-Host "✓ wingetcreate new succeeded. Review the PR in winget-pkgs."

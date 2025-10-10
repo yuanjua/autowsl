@@ -64,17 +64,10 @@ jobs:
             Write-Host "$f SHA256: $hash"
           }
 
-      - name: Install wingetcreate (tolerant of version-check failures)
+      - name: Install wingetcreate
         shell: pwsh
         run: |
           Invoke-WebRequest -Uri "https://aka.ms/wingetcreate/latest" -OutFile wingetcreate.exe -UseBasicParsing
-          # Try to print version but don't fail the step if the CLI returns non-zero
-          .\wingetcreate.exe --version 2>&1 | Tee-Object -FilePath wingetcreate-version.log
-          if ($LASTEXITCODE -ne 0) {
-            Write-Warning "wingetcreate --version returned exit code $LASTEXITCODE; continuing anyway. See wingetcreate-version.log for details."
-          } else {
-            Write-Host "wingetcreate --version OK"
-          }
 
       - name: Run wingetcreate update
         shell: pwsh
